@@ -3,11 +3,12 @@ dataset: "LJSpeech"
 path:
   corpus_path: "/home/ming/Data/LJSpeech-1.1"
   lexicon_path: "lexicon/librispeech-lexicon.txt"
-  raw_path: "./raw_data/LJSpeech"
-  preprocessed_path: "./preprocessed_data/LJSpeech"
+  raw_path: "/home/dadyatlova_1/dataset/LJSpeech-1.1/mfa_data/aligned_corpus"
+  preprocessed_path: "/home/dadyatlova_1/dataset/LJSpeech-1.1/preprocessed_data"
 
 preprocessing:
   val_size: 512
+  device: cpu
   text:
     text_cleaners: ["english_cleaners"]
     language: "en"

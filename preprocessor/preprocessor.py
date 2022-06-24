@@ -40,14 +40,12 @@ class Preprocessor:
         self.pitch_normalization = config["preprocessing"]["pitch"]["normalization"]
         self.energy_normalization = config["preprocessing"]["energy"]["normalization"]
 
-        self.STFT = Audio.stft.TacotronSTFT(
+        self.compute_mel_energy = Audio.compute_mel.ComputeMelEnergy(
+            config["preprocessing"]["audio"]["sampling_rate"],
             config["preprocessing"]["stft"]["filter_length"],
             config["preprocessing"]["stft"]["hop_length"],
-            config["preprocessing"]["stft"]["win_length"],
             config["preprocessing"]["mel"]["n_mel_channels"],
-            config["preprocessing"]["audio"]["sampling_rate"],
-            config["preprocessing"]["mel"]["mel_fmin"],
-            config["preprocessing"]["mel"]["mel_fmax"],
+            config["preprocessing"]["device"]
         )
 
     def build_from_path(self):
@@ -71,9 +69,7 @@ class Preprocessor:
                     continue
 
                 basename = wav_name.split(".")[0]
-                tg_path = os.path.join(
-                    self.out_dir, "TextGrid", speaker, "{}.TextGrid".format(basename)
-                )
+                tg_path = os.path.join(self.in_dir, speaker, "{}.TextGrid".format(basename))
                 if os.path.exists(tg_path):
                     ret = self.process_utterance(speaker, basename)
                     if ret is None:
@@ -154,10 +150,8 @@ class Preprocessor:
 
     def process_utterance(self, speaker, basename):
         wav_path = os.path.join(self.in_dir, speaker, "{}.wav".format(basename))
-        text_path = os.path.join(self.in_dir, speaker, "{}.lab".format(basename))
-        tg_path = os.path.join(
-            self.out_dir, "TextGrid", speaker, "{}.TextGrid".format(basename)
-        )
+        text_path = os.path.join(self.in_dir, speaker, "{}.txt".format(basename))
+        tg_path = os.path.join(self.in_dir, speaker, "{}.TextGrid".format(basename))
 
         # Get alignments
         textgrid = tgt.io.read_textgrid(tg_path)
@@ -169,10 +163,8 @@ class Preprocessor:
             return None
 
         # Read and trim wav files
-        wav, _ = librosa.load(wav_path)
-        wav = wav[
-            int(self.sampling_rate * start) : int(self.sampling_rate * end)
-        ].astype(np.float32)
+        wav, _ = librosa.load(wav_path, sr=self.sampling_rate)
+        wav = wav[int(self.sampling_rate * start):int(self.sampling_rate * end)].astype(np.float32)
 
         # Read raw text
         with open(text_path, "r") as f:
