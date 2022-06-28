@@ -203,7 +203,7 @@ class Preprocessor:
             pos = 0
             for i, d in enumerate(duration):
                 if d > 0:
-                    pitch[i] = np.mean(pitch[pos : pos + d])
+                    pitch[i] = np.mean(pitch[pos: pos + d])
                 else:
                     pitch[i] = 0
                 pos += d
@@ -214,7 +214,7 @@ class Preprocessor:
             pos = 0
             for i, d in enumerate(duration):
                 if d > 0:
-                    energy[i] = np.mean(energy[pos : pos + d])
+                    energy[i] = np.mean(energy[pos: pos + d])
                 else:
                     energy[i] = 0
                 pos += d
