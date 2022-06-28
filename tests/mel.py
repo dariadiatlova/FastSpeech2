@@ -26,11 +26,15 @@ if __name__ == "__main__":
         tg_path = os.path.join(config["source_wav_directory"], "{}.TextGrid".format(filename))
         wav_path = os.path.join(config["source_wav_directory"], "{}.wav".format(filename))
         textgrid = tgt.io.read_textgrid(tg_path)
-        preprocessor = Preprocessor(config["preprocess_config_path"])
+
+        preprocessor_config = yaml.load(open(config["preprocess_config_path"], "r"), Loader=yaml.FullLoader)
+        preprocessor = Preprocessor(preprocessor_config)
+
         _, _, start, end = preprocessor.get_alignment(textgrid.get_tier_by_name("phones"))
         wav = librosa.load(wav_path, sr=config["sample_rate"])[0]
         wav = wav[int(config["sample_rate"] * start):int(config["sample_rate"] * end)].astype(np.float32)
         online_mel, energy = get_mel_from_wav(wav, compute_mel_energy)
+
         # load mel from saved
         saved_mel = np.load(os.path.join(config["source_wav_directory"], "0-duration-{}.npy".format(filename)))
         assert np.allclose(online_mel, saved_mel), "Mel Spectrograms aren't closed due to the set tolerance"
