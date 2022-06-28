@@ -183,7 +183,7 @@ class Preprocessor:
             return None
 
         # Compute mel-scale spectrogram and energy
-        mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.STFT)
+        mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
         mel_spectrogram = mel_spectrogram[:, : sum(duration)]
         energy = energy[: sum(duration)]
 
