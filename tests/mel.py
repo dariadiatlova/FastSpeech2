@@ -20,7 +20,7 @@ if __name__ == "__main__":
     compute_mel_energy = ComputeMelEnergy(config["sample_rate"], config["filter_length"], config["hop_length"],
                                           config["win_length"], config["n_mels"], config["device"])
 
-    for filename in config.test_filenames:
+    for filename in config["test_filenames"]:
         # get mel online
         basename = filename.split(".")[0]
         tg_path = os.path.join(config["source_wav_directory"], "{}.TextGrid".format(filename))
