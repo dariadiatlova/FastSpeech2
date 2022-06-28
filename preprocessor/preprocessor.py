@@ -43,8 +43,8 @@ class Preprocessor:
         self.compute_mel_energy = Audio.compute_mel.ComputeMelEnergy(
             config["preprocessing"]["audio"]["sampling_rate"],
             config["preprocessing"]["stft"]["filter_length"],
-            config["preprocessing"]["stft"]["win_length"],
             config["preprocessing"]["stft"]["hop_length"],
+            config["preprocessing"]["stft"]["win_length"],
             config["preprocessing"]["mel"]["n_mel_channels"],
             config["preprocessing"]["device"]
         )
