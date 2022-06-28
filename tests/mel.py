@@ -34,7 +34,7 @@ if __name__ == "__main__":
         wav = librosa.load(wav_path, sr=config["sample_rate"])[0]
         wav = wav[int(config["sample_rate"] * start):int(config["sample_rate"] * end)].astype(np.float32)
         online_mel, energy = get_mel_from_wav(wav, compute_mel_energy)
-        online_mel = online_mel[:, :sum(duration)]
+        online_mel = online_mel[:, :sum(duration)].T
 
         # load mel from saved
         saved_mel = np.load(os.path.join(config["source_mel_directory"], "0-mel-{}.npy".format(filename)))
