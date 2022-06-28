@@ -30,10 +30,11 @@ if __name__ == "__main__":
         preprocessor_config = yaml.load(open(config["preprocess_config_path"], "r"), Loader=yaml.FullLoader)
         preprocessor = Preprocessor(preprocessor_config)
 
-        _, _, start, end = preprocessor.get_alignment(textgrid.get_tier_by_name("phones"))
+        _, duration, start, end = preprocessor.get_alignment(textgrid.get_tier_by_name("phones"))
         wav = librosa.load(wav_path, sr=config["sample_rate"])[0]
         wav = wav[int(config["sample_rate"] * start):int(config["sample_rate"] * end)].astype(np.float32)
         online_mel, energy = get_mel_from_wav(wav, compute_mel_energy)
+        online_mel = online_mel[:, :sum(duration)]
 
         # load mel from saved
         saved_mel = np.load(os.path.join(config["source_mel_directory"], "0-mel-{}.npy".format(filename)))
