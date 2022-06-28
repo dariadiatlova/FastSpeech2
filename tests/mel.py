@@ -36,5 +36,5 @@ if __name__ == "__main__":
         online_mel, energy = get_mel_from_wav(wav, compute_mel_energy)
 
         # load mel from saved
-        saved_mel = np.load(os.path.join(config["source_wav_directory"], "0-duration-{}.npy".format(filename)))
+        saved_mel = np.load(os.path.join(config["source_mel_directory"], "0-duration-{}.npy".format(filename)))
         assert np.allclose(online_mel, saved_mel), "Mel Spectrograms aren't closed due to the set tolerance"
