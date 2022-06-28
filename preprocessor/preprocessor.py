@@ -63,28 +63,28 @@ class Preprocessor:
 
         # Compute pitch, energy, duration, and mel-spectrogram
         speakers = {}
-        for i, speaker in enumerate(tqdm(os.listdir(self.in_dir))):
-            speakers[speaker] = i
-            for wav_name in os.listdir(os.path.join(self.in_dir, speaker)):
-                if ".wav" not in wav_name:
+        counter = 0
+        for filename in tqdm(os.listdir(self.in_dir)):
+            if ".wav" not in filename:
+                continue
+            speaker = filename.split(".")[0]
+            speakers[speaker] = counter
+            counter += 1
+            tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(speaker))
+            if os.path.exists(tg_path):
+                ret = self.process_utterance(speaker)
+                if ret is None:
                     continue
-
-                basename = wav_name.split(".")[0]
-                tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(basename))
-                if os.path.exists(tg_path):
-                    ret = self.process_utterance(speaker, basename)
-                    if ret is None:
-                        continue
-                    else:
-                        info, pitch, energy, n = ret
+                else:
+                    info, pitch, energy, n = ret
                     out.append(info)
 
-                if len(pitch) > 0:
-                    pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
-                if len(energy) > 0:
-                    energy_scaler.partial_fit(energy.reshape((-1, 1)))
+                    if len(pitch) > 0:
+                        pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
+                    if len(energy) > 0:
+                        energy_scaler.partial_fit(energy.reshape((-1, 1)))
 
-                n_frames += n
+                    n_frames += n
 
         print("Computing statistic quantities ...")
         # Perform normalization if necessary
@@ -141,10 +141,10 @@ class Preprocessor:
 
         # Write metadata
         with open(os.path.join(self.out_dir, "train.txt"), "w", encoding="utf-8") as f:
-            for m in out[self.val_size :]:
+            for m in out[self.val_size:]:
                 f.write(m + "\n")
         with open(os.path.join(self.out_dir, "val.txt"), "w", encoding="utf-8") as f:
-            for m in out[: self.val_size]:
+            for m in out[:self.val_size]:
                 f.write(m + "\n")
 
         return out
@@ -221,23 +221,23 @@ class Preprocessor:
             energy = energy[: len(duration)]
 
         # Save files
-        dur_filename = "{}-duration-{}.npy".format(speaker, basename)
+        dur_filename = "0-duration-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
-        pitch_filename = "{}-pitch-{}.npy".format(speaker, basename)
+        pitch_filename = "0-pitch-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
-        energy_filename = "{}-energy-{}.npy".format(speaker, basename)
+        energy_filename = "0-energy-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
-        mel_filename = "{}-mel-{}.npy".format(speaker, basename)
+        mel_filename = "0-mel-{}.npy".format(basename)
         np.save(
             os.path.join(self.out_dir, "mel", mel_filename),
             mel_spectrogram.T,
         )
 
         return (
-            "|".join([basename, speaker, text, raw_text]),
+            "|".join([basename, "0", text, raw_text]),
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1],
