@@ -70,7 +70,7 @@ class Preprocessor:
                     continue
 
                 basename = wav_name.split(".")[0]
-                tg_path = os.path.join(self.in_dir, speaker, "{}.TextGrid".format(basename))
+                tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(basename))
                 if os.path.exists(tg_path):
                     ret = self.process_utterance(speaker, basename)
                     if ret is None:
@@ -149,10 +149,10 @@ class Preprocessor:
 
         return out
 
-    def process_utterance(self, speaker, basename):
-        wav_path = os.path.join(self.in_dir, speaker, "{}.wav".format(basename))
-        text_path = os.path.join(self.in_dir, speaker, "{}.txt".format(basename))
-        tg_path = os.path.join(self.in_dir, speaker, "{}.TextGrid".format(basename))
+    def process_utterance(self, basename):
+        wav_path = os.path.join(self.in_dir, "{}.wav".format(basename))
+        text_path = os.path.join(self.in_dir, "{}.txt".format(basename))
+        tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(basename))
 
         # Get alignments
         textgrid = tgt.io.read_textgrid(tg_path)
