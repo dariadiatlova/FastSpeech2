@@ -3,6 +3,7 @@ import os
 
 import torch
 import yaml
+import wandb
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
@@ -54,35 +55,56 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
         *([step] + [l for l in loss_means])
     )
 
-    if logger is not None:
-        fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(
-            batch,
-            output,
-            vocoder,
-            model_config,
-            preprocess_config,
-        )
+    # if logger is not None:
+    fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(
+        batch,
+        output,
+        vocoder,
+        model_config,
+        preprocess_config,
+    )
 
-        log(logger, step, losses=loss_means)
-        log(
-            logger,
-            fig=fig,
-            tag="Validation/step_{}_{}".format(step, tag),
-        )
-        sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
-        log(
-            logger,
-            audio=wav_reconstruction,
-            sampling_rate=sampling_rate,
-            tag="Validation/step_{}_{}_reconstructed".format(step, tag),
-        )
-        log(
-            logger,
-            audio=wav_prediction,
-            sampling_rate=sampling_rate,
-            tag="Validation/step_{}_{}_synthesized".format(step, tag),
-        )
+    if loss_means is not None:
+    # log(logger, step, losses=loss_means)
+        wandb.log({"Total_loss": loss_means[0]})
+        wandb.log({"Mel_loss": loss_means[1]})
+        wandb.log({"Mel_postnet_loss": loss_means[2]})
+        wandb.log({"Pitch_loss": loss_means[3]})
+        wandb.log({"Energy_loss": loss_means[4]})
+        wandb.log({"Duration_loss": loss_means[5]})
 
+    if fig is not None:
+        images = wandb.Image(fig, caption="Validation/step_{}_{}".format(step, tag))
+        wandb.log({"Spectrograms": images})
+
+    # log(
+    #     logger,
+    #     fig=fig,
+    #     tag="Validation/step_{}_{}".format(step, tag),
+    # )
+    sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
+    # log(
+    #     logger,
+    #     audio=wav_reconstruction,
+    #     sampling_rate=sampling_rate,
+    #     tag="Validation/step_{}_{}_reconstructed".format(step, tag),
+    # )
+    if wav_reconstruction is not None:
+        reconstructed_audio = wandb.Audio(wav_reconstruction.squeeze(0).squeeze(0).detach().cpu().numpy(),
+                                          caption="Validation/step_{}_{}_reconstructed".format(step, tag),
+                                          sample_rate=sampling_rate)
+        wandb.log({"wav_reconstruction": reconstructed_audio})
+    # log(
+    #     logger,
+    #     audio=wav_prediction,
+    #     sampling_rate=sampling_rate,
+    #     tag="Validation/step_{}_{}_synthesized".format(step, tag),
+    # )
+    if wav_prediction is not None:
+        predicted_audio = wandb.Audio(wav_prediction.squeeze(0).squeeze(0).detach().cpu().numpy(),
+                                      caption="Validation/step_{}_{}_synthesized".format(step, tag),
+                                      sample_rate=sampling_rate)
+        wandb.log({"wav_predicted": predicted_audio})
     return message
 
 

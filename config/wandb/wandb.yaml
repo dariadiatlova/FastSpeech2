@@ -1,0 +1,6 @@
+save_dir: null
+progress_bar_refresh_rate: 1
+checkpoint_directory: null
+project: "FastSpeechTestRun"
+offline: false
+log_every_n_steps: 100
