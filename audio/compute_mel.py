@@ -1,9 +1,6 @@
 import torch
-import torchaudio
 import torch.nn as nn
-
-from audio.stft import STFT
-
+import torchaudio
 
 MIN_MEL_VALUE = 1e-05
 PAD_MEL_VALUE = -11.52
@@ -21,14 +18,12 @@ class ComputeMelEnergy(nn.Module):
         self.hop_length = hop_length
         self.padding = n_fft - hop_length
         self.pad_value = pad_value
-        self.stft_fn = STFT(n_fft, hop_length, win_length, device)
 
     def forward(self, wav, wav_lens=None):
         padded_wav = nn.functional.pad(wav, (self.padding // 2, self.padding // 2), mode='reflect')
-        mel = log_mel(self.compute_mel(padded_wav))
-
-        magnitudes, phases = self.stft_fn.transform(wav)
-        energy = torch.norm(magnitudes.data, dim=1)
+        spectrogram = self.compute_mel.spectrogram(padded_wav)
+        mel = log_mel(self.compute_mel.mel_scale(spectrogram))
+        energy = torch.norm(spectrogram, dim=1)
 
         if wav_lens is None:
             return mel, energy

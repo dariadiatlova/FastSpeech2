@@ -16,11 +16,13 @@ import audio as Audio
 class Preprocessor:
     def __init__(self, config):
         self.config = config
+        self.include_empty_intervals = config["include_empty_intervals"]
         self.in_dir = config["path"]["raw_path"]
         self.out_dir = config["path"]["preprocessed_path"]
         self.val_size = config["preprocessing"]["val_size"]
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
+        self.mel_dur_diff = []
 
         assert config["preprocessing"]["pitch"]["feature"] in [
             "phoneme_level",
@@ -72,11 +74,12 @@ class Preprocessor:
             counter += 1
             tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(speaker))
             if os.path.exists(tg_path):
-                ret = self.process_utterance(speaker)
+                ret = self.process_utterance(speaker, self.include_empty_intervals)
                 if ret is None:
                     continue
                 else:
-                    info, pitch, energy, n = ret
+                    info, pitch, energy, n, mel_spec_real_count, duration_sum = ret
+                    self.mel_dur_diff.append(mel_spec_real_count - duration_sum)
                     out.append(info)
 
                     if len(pitch) > 0:
@@ -146,16 +149,16 @@ class Preprocessor:
         with open(os.path.join(self.out_dir, "val.txt"), "w", encoding="utf-8") as f:
             for m in out[:self.val_size]:
                 f.write(m + "\n")
-
+        print(f"Average difference between mel shape and duration sum: {np.mean(self.mel_dur_diff)}")
         return out
 
-    def process_utterance(self, basename):
+    def process_utterance(self, basename, include_empty_intervals):
         wav_path = os.path.join(self.in_dir, "{}.wav".format(basename))
         text_path = os.path.join(self.in_dir, "{}.txt".format(basename))
         tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(basename))
 
         # Get alignments
-        textgrid = tgt.io.read_textgrid(tg_path)
+        textgrid = tgt.io.read_textgrid(tg_path, include_empty_intervals)
         phone, duration, start, end = self.get_alignment(
             textgrid.get_tier_by_name("phones")
         )
@@ -185,6 +188,9 @@ class Preprocessor:
 
         # Compute mel-scale spectrogram and energy
         mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
+        # Duration check
+        mel_spec_real_count = mel_spectrogram.shape[2]
+        duration_sum = sum(duration)
         mel_spectrogram = mel_spectrogram[:, : sum(duration)]
         energy = energy[: sum(duration)]
 
@@ -221,16 +227,16 @@ class Preprocessor:
             energy = energy[: len(duration)]
 
         # Save files
-        dur_filename = "0-duration-{}.npy".format(basename)
+        dur_filename = "LJSpeech-duration-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
-        pitch_filename = "0-pitch-{}.npy".format(basename)
+        pitch_filename = "LJSpeech-pitch-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
-        energy_filename = "0-energy-{}.npy".format(basename)
+        energy_filename = "LJSpeech-energy-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
-        mel_filename = "0-mel-{}.npy".format(basename)
+        mel_filename = "LJSpeech-mel-{}.npy".format(basename)
         np.save(
             os.path.join(self.out_dir, "mel", mel_filename),
             mel_spectrogram.T,
@@ -241,6 +247,8 @@ class Preprocessor:
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1],
+            mel_spec_real_count,
+            duration_sum
         )
 
     def get_alignment(self, tier):
