@@ -199,7 +199,7 @@ class Preprocessor:
         mel_sum = mel_spectrogram.shape[1]
         duration_sum = sum(duration)
         mel_spectrogram = mel_spectrogram[:, :sum(duration)]
-        energy_sum = energy.shape[1]
+        energy_sum = energy.shape[0]
         energy = energy[:sum(duration)]
 
         if self.pitch_phoneme_averaging:
