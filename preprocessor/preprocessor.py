@@ -16,7 +16,7 @@ import audio as Audio
 class Preprocessor:
     def __init__(self, config):
         self.config = config
-        self.include_empty_intervals = config["include_empty_intervals"]
+        self.include_empty_intervals = config["preprocessing"]["include_empty_intervals"]
         self.in_dir = config["path"]["raw_path"]
         self.out_dir = config["path"]["preprocessed_path"]
         self.val_size = config["preprocessing"]["val_size"]
@@ -158,7 +158,7 @@ class Preprocessor:
         tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(basename))
 
         # Get alignments
-        textgrid = tgt.io.read_textgrid(tg_path, include_empty_intervals)
+        textgrid = tgt.io.read_textgrid(tg_path, include_empty_intervals=include_empty_intervals)
         phone, duration, start, end = self.get_alignment(
             textgrid.get_tier_by_name("phones")
         )
