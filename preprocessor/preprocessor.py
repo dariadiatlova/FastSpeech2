@@ -188,8 +188,8 @@ class Preprocessor:
         )
         pitch = pw.stonemask(wav.astype(np.float64), pitch, t, self.sampling_rate)
 
-        pitch = pitch[: sum(duration)]
-        pitch_sum = pitch.shape[1]
+        pitch = pitch[:sum(duration)]
+        pitch_sum = pitch.shape[0]
         if np.sum(pitch != 0) <= 1:
             return None
 
