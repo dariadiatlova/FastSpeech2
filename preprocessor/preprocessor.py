@@ -23,6 +23,8 @@ class Preprocessor:
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
         self.mel_dur_diff = []
+        self.energy_dur_diff = []
+        self.pitch_dur_diff = []
 
         assert config["preprocessing"]["pitch"]["feature"] in [
             "phoneme_level",
@@ -78,8 +80,10 @@ class Preprocessor:
                 if ret is None:
                     continue
                 else:
-                    info, pitch, energy, n, mel_spec_real_count, duration_sum = ret
-                    self.mel_dur_diff.append(mel_spec_real_count - duration_sum)
+                    info, pitch, energy, n, mel_sum, energy_sum, pitch_sum, duration_sum = ret
+                    self.mel_dur_diff.append(mel_sum - duration_sum)
+                    self.energy_dur_diff.append(energy_sum - duration_sum)
+                    self.pitch_dur_diff.append(pitch_sum - duration_sum)
                     out.append(info)
 
                     if len(pitch) > 0:
@@ -150,6 +154,8 @@ class Preprocessor:
             for m in out[:self.val_size]:
                 f.write(m + "\n")
         print(f"Average difference between mel shape and duration sum: {np.mean(self.mel_dur_diff)}")
+        print(f"Average difference between energy shape and duration sum: {np.mean(self.energy_dur_diff)}")
+        print(f"Average difference between pitch shape and duration sum: {np.mean(self.pitch_dur_diff)}")
         return out
 
     def process_utterance(self, basename, include_empty_intervals):
@@ -183,16 +189,18 @@ class Preprocessor:
         pitch = pw.stonemask(wav.astype(np.float64), pitch, t, self.sampling_rate)
 
         pitch = pitch[: sum(duration)]
+        pitch_sum = pitch.shape[1]
         if np.sum(pitch != 0) <= 1:
             return None
 
         # Compute mel-scale spectrogram and energy
         mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
         # Duration check
-        mel_spec_real_count = mel_spectrogram.shape[2]
+        mel_sum = mel_spectrogram.shape[1]
         duration_sum = sum(duration)
-        mel_spectrogram = mel_spectrogram[:, : sum(duration)]
-        energy = energy[: sum(duration)]
+        mel_spectrogram = mel_spectrogram[:, :sum(duration)]
+        energy_sum = energy.shape[1]
+        energy = energy[:sum(duration)]
 
         if self.pitch_phoneme_averaging:
             # perform linear interpolation
@@ -247,7 +255,9 @@ class Preprocessor:
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1],
-            mel_spec_real_count,
+            mel_sum,
+            energy_sum,
+            pitch_sum,
             duration_sum
         )
 
