@@ -209,6 +209,9 @@ class Preprocessor:
         assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
                                             f"count {pitch.shape[0]}"
 
+        if mel_count - energy.shape[0] == 1:
+            energy = np.pad(energy, (0, mel_count - energy.shape[0]), mode="constant", constant_values=0)
+
         assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
                                              f"count {energy.shape[0]}"
 
