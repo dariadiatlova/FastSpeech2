@@ -225,6 +225,7 @@ class Preprocessor:
         if duration_sum - mel_sum == 1:
             mel_spectrogram = np.pad(mel_spectrogram,
                                      (0, duration_sum - mel_sum), mode="constant", constant_values=PAD_MEL_VALUE)
+        mel_sum = mel_spectrogram.shape[1]
         assert mel_sum == duration_sum, f"Mels and durations mismatch, mel count: {mel_sum}, " \
                                         f"duration count: {duration_sum}."
 
