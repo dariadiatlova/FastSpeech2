@@ -176,8 +176,6 @@ class Preprocessor:
             textgrid.get_tier_by_name("phones")
         )
 
-        assert phone.shape[0] == duration.shape[0], f"Phones and durations mismatch phone count {phone.shape[0]}," \
-                                                    f"duration count {duration.shape[0]}"
         text = "{" + " ".join(phone) + "}"
         if start >= end:
             return None
@@ -310,7 +308,8 @@ class Preprocessor:
                     - np.round(s * self.sampling_rate / self.hop_length)
                 )
             )
-
+        assert len(phones) == len(durations), f"Phones and durations mismatch phones count {phones.shape[0]}," \
+                                              f"durations count {durations.shape[0]}"
         # Trim tailing silences
         phones = phones[:end_idx]
         durations = durations[:end_idx]
