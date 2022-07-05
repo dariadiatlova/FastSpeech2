@@ -200,8 +200,10 @@ class Preprocessor:
         mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
         mel_count = mel_spectrogram.shape[1]
 
-        assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
-                                            f"count {pitch.shape[0]}"
+        if pitch.shape[0] - mel_count == 1:
+            pitch = pitch[-1]
+            assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
+                                                f"count {pitch.shape[0]}"
 
         assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
                                              f"count {energy.shape[0]}"
