@@ -202,15 +202,15 @@ class Preprocessor:
         mel_count = mel_spectrogram.shape[1]
 
         if pitch.shape[0] - mel_count == 1:
-            # pitch = pitch[:-1]
-            mel_spectrogram = np.pad(mel_spectrogram,
-                                     (0, pitch.shape[0] - mel_count), mode="constant", constant_values=PAD_MEL_VALUE)
-        mel_count = mel_spectrogram.shape[1]
+            pitch = pitch[:-1]
+            # mel_spectrogram = np.pad(mel_spectrogram,
+            #                          (0, pitch.shape[0] - mel_count), mode="constant", constant_values=PAD_MEL_VALUE)
+        # mel_count = mel_spectrogram.shape[1]
         assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
                                             f"count {pitch.shape[0]}"
 
-        if mel_count - energy.shape[0] == 1:
-            energy = np.pad(energy, (0, mel_count - energy.shape[0]), mode="constant", constant_values=0)
+        # if mel_count - energy.shape[0] == 1:
+        #     energy = np.pad(energy, (0, mel_count - energy.shape[0]), mode="constant", constant_values=0)
 
         assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
                                              f"count {energy.shape[0]}"
