@@ -3,8 +3,8 @@ dataset: "LJSpeech"
 path:
   corpus_path: "/home/ming/Data/LJSpeech-1.1"
   lexicon_path: "lexicon/librispeech-lexicon.txt"
-  raw_path: "/home/dadyatlova_1/dataset/LJSpeech-1.1/mfa_data/aligned_corpus"
-  preprocessed_path: "/home/dadyatlova_1/dataset/LJSpeech-1.1/preprocessed_data"
+  raw_path: "/root/dasha/mfa/aligned_corpus"
+  preprocessed_path: "/root/dasha/preprocessed_data"
 
 preprocessing:
   include_empty_intervals: true

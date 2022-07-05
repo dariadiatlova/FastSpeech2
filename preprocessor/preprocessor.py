@@ -13,14 +13,14 @@ from tqdm import tqdm
 import audio as Audio
 from audio.compute_mel import PAD_MEL_VALUE
 
-# pitch shape / if 1 more, throw = mel spec shape
-# energy shape = mel shape
+# pitch shape / if 1 more, throw = mel spec shape: DONE
+# energy shape = mel shape: DONE
 
-# duration shape = phoneme shape
-# can remove _curly_re and { } in join
+# duration shape = phoneme shape: DONE
+# can remove _curly_re and { } in join: TO DO
 
-# pad mel to duration shape by special const
-# pad energy to duration shape pad by 0
+# pad mel to duration shape by special const: DONE
+# pad energy to duration shape pad by 0: DONE
 
 
 class Preprocessor:
@@ -32,9 +32,6 @@ class Preprocessor:
         self.val_size = config["preprocessing"]["val_size"]
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
-        self.mel_dur_diff = []
-        self.energy_dur_diff = []
-        self.pitch_dur_diff = []
 
         assert config["preprocessing"]["pitch"]["feature"] in [
             "phoneme_level",
@@ -90,11 +87,7 @@ class Preprocessor:
                 if ret is None:
                     continue
                 else:
-                    # info, pitch, energy, n, mel_sum, energy_sum, pitch_sum, duration_sum = ret
                     info, pitch, energy, n = ret
-                    # self.mel_dur_diff.append(mel_sum - duration_sum)
-                    # self.energy_dur_diff.append(energy_sum - duration_sum)
-                    # self.pitch_dur_diff.append(pitch_sum - duration_sum)
                     out.append(info)
 
                     if len(pitch) > 0:
@@ -203,19 +196,14 @@ class Preprocessor:
 
         if pitch.shape[0] - mel_count == 1:
             pitch = pitch[:-1]
-            # mel_spectrogram = np.pad(mel_spectrogram,
-            #                          (0, pitch.shape[0] - mel_count), mode="constant", constant_values=PAD_MEL_VALUE)
-        # mel_count = mel_spectrogram.shape[1]
+
         assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
                                             f"count {pitch.shape[0]}"
-
-        # if mel_count - energy.shape[0] == 1:
-        #     energy = np.pad(energy, (0, mel_count - energy.shape[0]), mode="constant", constant_values=0)
 
         assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
                                              f"count {energy.shape[0]}"
 
-        pitch = pitch[:sum(duration)]
+        # pitch = pitch[:sum(duration)]
         if np.sum(pitch != 0) <= 1:
             return None
 
@@ -229,9 +217,7 @@ class Preprocessor:
         assert mel_sum == duration_sum, f"Mels and durations mismatch, mel count: {mel_sum}, " \
                                         f"duration count: {duration_sum}."
 
-        # mel_spectrogram = mel_spectrogram[:, :sum(duration)] # useless if previous assert passes
-        energy_sum = energy.shape[0]
-        energy = energy[:sum(duration)]
+        # energy = energy[:sum(duration)]
 
         if self.pitch_phoneme_averaging:
             # perform linear interpolation
@@ -252,7 +238,7 @@ class Preprocessor:
                 else:
                     pitch[i] = 0
                 pos += d
-            pitch = pitch[: len(duration)]
+            # pitch = pitch[: len(duration)]
 
         if self.energy_phoneme_averaging:
             # Phoneme-level average
@@ -263,7 +249,7 @@ class Preprocessor:
                 else:
                     energy[i] = 0
                 pos += d
-            energy = energy[: len(duration)]
+            # energy = energy[: len(duration)]
 
         # Save files
         dur_filename = "LJSpeech-duration-{}.npy".format(basename)
