@@ -201,7 +201,7 @@ class Preprocessor:
         mel_count = mel_spectrogram.shape[1]
 
         if pitch.shape[0] - mel_count == 1:
-            pitch = pitch[-1]
+            pitch = pitch[:-1]
             assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
                                                 f"count {pitch.shape[0]}"
 
