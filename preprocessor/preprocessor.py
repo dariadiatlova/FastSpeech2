@@ -222,10 +222,13 @@ class Preprocessor:
         # Duration check
         mel_sum = mel_spectrogram.shape[1]
         duration_sum = sum(duration)
+        if duration_sum - mel_sum == 1:
+            mel_spectrogram = np.pad(mel_spectrogram,
+                                     (0, duration_sum - mel_sum), mode="constant", constant_values=PAD_MEL_VALUE)
         assert mel_sum == duration_sum, f"Mels and durations mismatch, mel count: {mel_sum}, " \
                                         f"duration count: {duration_sum}."
 
-        mel_spectrogram = mel_spectrogram[:, :sum(duration)]
+        # mel_spectrogram = mel_spectrogram[:, :sum(duration)] # useless if previous assert passes
         energy_sum = energy.shape[0]
         energy = energy[:sum(duration)]
 
