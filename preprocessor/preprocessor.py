@@ -11,6 +11,7 @@ from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
 import audio as Audio
+from audio.compute_mel import PAD_MEL_VALUE
 
 # pitch shape / if 1 more, throw = mel spec shape
 # energy shape = mel shape
@@ -201,9 +202,12 @@ class Preprocessor:
         mel_count = mel_spectrogram.shape[1]
 
         if pitch.shape[0] - mel_count == 1:
-            pitch = pitch[:-1]
-            assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
-                                                f"count {pitch.shape[0]}"
+            # pitch = pitch[:-1]
+            mel_spectrogram = np.pad(mel_spectrogram,
+                                     (0, pitch.shape[0] - mel_count), mode="constant", constant_values=PAD_MEL_VALUE)
+        mel_count = mel_spectrogram.shape[1]
+        assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
+                                            f"count {pitch.shape[0]}"
 
         assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
                                              f"count {energy.shape[0]}"
