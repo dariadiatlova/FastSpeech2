@@ -12,6 +12,15 @@ from tqdm import tqdm
 
 import audio as Audio
 
+# pitch shape / if 1 more, throw = mel spec shape
+# energy shape = mel shape
+
+# duration shape = phoneme shape
+# can remove _curly_re and { } in join
+
+# pad mel to duration shape by special const
+# pad energy to duration shape pad by 0
+
 
 class Preprocessor:
     def __init__(self, config):
@@ -80,10 +89,11 @@ class Preprocessor:
                 if ret is None:
                     continue
                 else:
-                    info, pitch, energy, n, mel_sum, energy_sum, pitch_sum, duration_sum = ret
-                    self.mel_dur_diff.append(mel_sum - duration_sum)
-                    self.energy_dur_diff.append(energy_sum - duration_sum)
-                    self.pitch_dur_diff.append(pitch_sum - duration_sum)
+                    # info, pitch, energy, n, mel_sum, energy_sum, pitch_sum, duration_sum = ret
+                    info, pitch, energy, n = ret
+                    # self.mel_dur_diff.append(mel_sum - duration_sum)
+                    # self.energy_dur_diff.append(energy_sum - duration_sum)
+                    # self.pitch_dur_diff.append(pitch_sum - duration_sum)
                     out.append(info)
 
                     if len(pitch) > 0:
@@ -153,9 +163,6 @@ class Preprocessor:
         with open(os.path.join(self.out_dir, "val.txt"), "w", encoding="utf-8") as f:
             for m in out[:self.val_size]:
                 f.write(m + "\n")
-        print(f"Average difference between mel shape and duration sum: {np.mean(self.mel_dur_diff)}")
-        print(f"Average difference between energy shape and duration sum: {np.mean(self.energy_dur_diff)}")
-        print(f"Average difference between pitch shape and duration sum: {np.mean(self.pitch_dur_diff)}")
         return out
 
     def process_utterance(self, basename, include_empty_intervals):
@@ -168,6 +175,9 @@ class Preprocessor:
         phone, duration, start, end = self.get_alignment(
             textgrid.get_tier_by_name("phones")
         )
+
+        assert phone.shape[0] == duration.shape[0], f"Phones and durations mismatch phone count {phone.shape[0]}," \
+                                                    f"duration count {duration.shape[0]}"
         text = "{" + " ".join(phone) + "}"
         if start >= end:
             return None
@@ -188,16 +198,26 @@ class Preprocessor:
         )
         pitch = pw.stonemask(wav.astype(np.float64), pitch, t, self.sampling_rate)
 
+        # Compute mel-scale spectrogram and energy
+        mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
+        mel_count = mel_spectrogram.shape[1]
+
+        assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
+                                            f"count {pitch.shape[0]}"
+
+        assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
+                                             f"count {energy.shape[0]}"
+
         pitch = pitch[:sum(duration)]
-        pitch_sum = pitch.shape[0]
         if np.sum(pitch != 0) <= 1:
             return None
 
-        # Compute mel-scale spectrogram and energy
-        mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
         # Duration check
         mel_sum = mel_spectrogram.shape[1]
         duration_sum = sum(duration)
+        assert mel_sum == duration_sum, f"Mels and durations mismatch, mel count: {mel_sum}, " \
+                                        f"duration count: {duration_sum}."
+
         mel_spectrogram = mel_spectrogram[:, :sum(duration)]
         energy_sum = energy.shape[0]
         energy = energy[:sum(duration)]
@@ -254,11 +274,7 @@ class Preprocessor:
             "|".join([basename, "0", text, raw_text]),
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
-            mel_spectrogram.shape[1],
-            mel_sum,
-            energy_sum,
-            pitch_sum,
-            duration_sum
+            mel_spectrogram.shape[1]
         )
 
     def get_alignment(self, tier):

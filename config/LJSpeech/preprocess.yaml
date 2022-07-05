@@ -7,7 +7,7 @@ path:
   preprocessed_path: "/home/dadyatlova_1/dataset/LJSpeech-1.1/preprocessed_data"
 
 preprocessing:
-  include_empty_intervals: false
+  include_empty_intervals: true
   val_size: 512
   device: cpu
   text:
