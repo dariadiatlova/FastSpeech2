@@ -17,12 +17,15 @@ class Dataset(Dataset):
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
         self.cleaners = preprocess_config["preprocessing"]["text"]["text_cleaners"]
         self.batch_size = train_config["optimizer"]["batch_size"]
-
         self.basename, self.speaker, self.text, self.raw_text = self.process_meta(
             filename
         )
         with open(os.path.join(self.preprocessed_path, "speakers.json")) as f:
             self.speaker_map = json.load(f)
+        # change to the view: {"0": "LJ039-0161"}
+        self.speaker_map = dict(zip(list(self.speaker_map.values()), list(self.speaker_map.keys())))
+        with open(train_config["phones_mapping_path"], "r") as f:
+            self.phones_mapping = json.load(f)
         self.sort = sort
         self.drop_last = drop_last
 
@@ -32,34 +35,40 @@ class Dataset(Dataset):
     def __getitem__(self, idx):
         basename = self.basename[idx]
         speaker = self.speaker[idx]
+        speaker = int(speaker)
         speaker_id = self.speaker_map[speaker]
         raw_text = self.raw_text[idx]
-        phone = np.array(text_to_sequence(self.text[idx], self.cleaners))
+        # phone = np.array(text_to_sequence(self.text[idx], self.cleaners))
+        phone = np.array([self.phones_mapping[i] for i in self.text[idx][1:-1].split(" ")])
+        # phone = np.array([self.ph_id_mapping[phoneme] for phoneme in self.text[idx][1:-1].split()])
         mel_path = os.path.join(
             self.preprocessed_path,
             "mel",
-            "{}-mel-{}.npy".format(speaker, basename),
+            "{}-mel-{}.npy".format("0", basename),
         )
         mel = np.load(mel_path)
         pitch_path = os.path.join(
             self.preprocessed_path,
             "pitch",
-            "{}-pitch-{}.npy".format(speaker, basename),
+            "{}-pitch-{}.npy".format("0", basename),
         )
         pitch = np.load(pitch_path)
         energy_path = os.path.join(
             self.preprocessed_path,
             "energy",
-            "{}-energy-{}.npy".format(speaker, basename),
+            "{}-energy-{}.npy".format("0", basename),
         )
         energy = np.load(energy_path)
         duration_path = os.path.join(
             self.preprocessed_path,
             "duration",
-            "{}-duration-{}.npy".format(speaker, basename),
+            "{}-duration-{}.npy".format("0", basename),
         )
         duration = np.load(duration_path)
-
+        # import pdb
+        # pdb.set_trace()
+        assert duration.shape == phone.shape, f"Duration and phone shapes do not match. Phone shape {phone.shape}, " \
+                                              f"duration: {duration.shape} for sample: {self.basename[idx]}."
         sample = {
             "id": basename,
             "speaker": speaker_id,
@@ -205,13 +214,13 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from utils.utils import to_device
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     preprocess_config = yaml.load(
         open("./config/LJSpeech/preprocess.yaml", "r"), Loader=yaml.FullLoader
     )
     train_config = yaml.load(
         open("./config/LJSpeech/train.yaml", "r"), Loader=yaml.FullLoader
     )
+    device = train_config["device"]
 
     train_dataset = Dataset(
         "train.txt", preprocess_config, train_config, sort=True, drop_last=True
@@ -219,6 +228,7 @@ if __name__ == "__main__":
     val_dataset = Dataset(
         "val.txt", preprocess_config, train_config, sort=False, drop_last=False
     )
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=train_config["optimizer"]["batch_size"] * 4,

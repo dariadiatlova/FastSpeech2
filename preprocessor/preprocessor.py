@@ -13,15 +13,6 @@ from tqdm import tqdm
 import audio as Audio
 from audio.compute_mel import PAD_MEL_VALUE
 
-# pitch shape / if 1 more, throw = mel spec shape: DONE
-# energy shape = mel shape: DONE
-
-# duration shape = phoneme shape: DONE
-# can remove _curly_re and { } in join: TO DO
-
-# pad mel to duration shape by special const: DONE
-# pad energy to duration shape pad by 0: DONE
-
 
 class Preprocessor:
     def __init__(self, config):
@@ -32,21 +23,12 @@ class Preprocessor:
         self.val_size = config["preprocessing"]["val_size"]
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
+        self.n_mels = config["preprocessing"]["mel"]["n_mel_channels"]
 
-        assert config["preprocessing"]["pitch"]["feature"] in [
-            "phoneme_level",
-            "frame_level",
-        ]
-        assert config["preprocessing"]["energy"]["feature"] in [
-            "phoneme_level",
-            "frame_level",
-        ]
-        self.pitch_phoneme_averaging = (
-            config["preprocessing"]["pitch"]["feature"] == "phoneme_level"
-        )
-        self.energy_phoneme_averaging = (
-            config["preprocessing"]["energy"]["feature"] == "phoneme_level"
-        )
+        assert config["preprocessing"]["pitch"]["feature"] in ["phoneme_level", "frame_level"]
+        assert config["preprocessing"]["energy"]["feature"] in ["phoneme_level", "frame_level"]
+        self.pitch_phoneme_averaging = (config["preprocessing"]["pitch"]["feature"] == "phoneme_level")
+        self.energy_phoneme_averaging = (config["preprocessing"]["energy"]["feature"] == "phoneme_level")
 
         self.pitch_normalization = config["preprocessing"]["pitch"]["normalization"]
         self.energy_normalization = config["preprocessing"]["energy"]["normalization"]
@@ -113,12 +95,8 @@ class Preprocessor:
             energy_mean = 0
             energy_std = 1
 
-        pitch_min, pitch_max = self.normalize(
-            os.path.join(self.out_dir, "pitch"), pitch_mean, pitch_std
-        )
-        energy_min, energy_max = self.normalize(
-            os.path.join(self.out_dir, "energy"), energy_mean, energy_std
-        )
+        pitch_min, pitch_max = self.normalize(os.path.join(self.out_dir, "pitch"), pitch_mean, pitch_std)
+        energy_min, energy_max = self.normalize(os.path.join(self.out_dir, "energy"), energy_mean, energy_std)
 
         # Save files
         with open(os.path.join(self.out_dir, "speakers.json"), "w") as f:
@@ -141,11 +119,7 @@ class Preprocessor:
             }
             f.write(json.dumps(stats))
 
-        print(
-            "Total time: {} hours".format(
-                n_frames * self.hop_length / self.sampling_rate / 3600
-            )
-        )
+        print("Total time: {} hours".format(n_frames * self.hop_length / self.sampling_rate / 3600))
 
         random.shuffle(out)
         out = [r for r in out if r is not None]
@@ -166,9 +140,7 @@ class Preprocessor:
 
         # Get alignments
         textgrid = tgt.io.read_textgrid(tg_path, include_empty_intervals=include_empty_intervals)
-        phone, duration, start, end = self.get_alignment(
-            textgrid.get_tier_by_name("phones")
-        )
+        phone, duration, start, end = self.get_alignment(textgrid.get_tier_by_name("phones"))
 
         text = "{" + " ".join(phone) + "}"
         if start >= end:
@@ -203,7 +175,7 @@ class Preprocessor:
         assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
                                              f"count {energy.shape[0]}"
 
-        # pitch = pitch[:sum(duration)]
+        pitch = pitch[:sum(duration)]
         if np.sum(pitch != 0) <= 1:
             return None
 
@@ -212,12 +184,15 @@ class Preprocessor:
         duration_sum = sum(duration)
         if duration_sum - mel_sum == 1:
             mel_spectrogram = np.pad(mel_spectrogram,
-                                     (0, duration_sum - mel_sum), mode="constant", constant_values=PAD_MEL_VALUE)
+                                     ((0, 0), (0, duration_sum - mel_sum)),
+                                     mode="constant", constant_values=PAD_MEL_VALUE)
         mel_sum = mel_spectrogram.shape[1]
         assert mel_sum == duration_sum, f"Mels and durations mismatch, mel count: {mel_sum}, " \
                                         f"duration count: {duration_sum}."
 
-        # energy = energy[:sum(duration)]
+        assert mel_spectrogram.shape[0] == self.n_mels, f"Incorrect padding, supposed to have: {self.n_mels}, got " \
+                                                        f"{mel_spectrogram.shape[0]}."
+        energy = energy[:sum(duration)]
 
         if self.pitch_phoneme_averaging:
             # perform linear interpolation
@@ -238,7 +213,7 @@ class Preprocessor:
                 else:
                     pitch[i] = 0
                 pos += d
-            # pitch = pitch[: len(duration)]
+            pitch = pitch[: len(duration)]
 
         if self.energy_phoneme_averaging:
             # Phoneme-level average
@@ -249,19 +224,19 @@ class Preprocessor:
                 else:
                     energy[i] = 0
                 pos += d
-            # energy = energy[: len(duration)]
+            energy = energy[: len(duration)]
 
         # Save files
-        dur_filename = "LJSpeech-duration-{}.npy".format(basename)
+        dur_filename = "0-duration-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
-        pitch_filename = "LJSpeech-pitch-{}.npy".format(basename)
+        pitch_filename = "0-pitch-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
-        energy_filename = "LJSpeech-energy-{}.npy".format(basename)
+        energy_filename = "0-energy-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
-        mel_filename = "LJSpeech-mel-{}.npy".format(basename)
+        mel_filename = "0-mel-{}.npy".format(basename)
         np.save(
             os.path.join(self.out_dir, "mel", mel_filename),
             mel_spectrogram.T,
@@ -302,10 +277,8 @@ class Preprocessor:
                 phones.append(p)
 
             durations.append(
-                int(
-                    np.round(e * self.sampling_rate / self.hop_length)
-                    - np.round(s * self.sampling_rate / self.hop_length)
-                )
+                int(np.round(e * self.sampling_rate / self.hop_length)
+                    - np.round(s * self.sampling_rate / self.hop_length))
             )
         assert len(phones) == len(durations), f"Phones and durations mismatch phones count {phones.shape[0]}," \
                                               f"durations count {durations.shape[0]}"

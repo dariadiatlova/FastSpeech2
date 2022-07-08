@@ -1,7 +1,9 @@
+device: "cuda"
 path:
-  ckpt_path: "./output/ckpt/LJSpeech"
-  log_path: "./output/log/LJSpeech"
-  result_path: "./output/result/LJSpeech"
+  ckpt_path: "/root/dasha/FastSpeech2/output"
+  log_path: "/root/dasha/FastSpeech2/output"
+  result_path: "/root/dasha/FastSpeech2/output"
+phones_mapping_path: "/root/dasha/mfa/phones_mapping.json"
 optimizer:
   batch_size: 16
   betas: [0.9, 0.98]

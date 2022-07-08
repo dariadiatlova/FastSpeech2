@@ -1,5 +1,5 @@
 dataset: "LJSpeech"
-
+device: "cuda"
 path:
   corpus_path: "/home/ming/Data/LJSpeech-1.1"
   lexicon_path: "lexicon/librispeech-lexicon.txt"
@@ -9,7 +9,7 @@ path:
 preprocessing:
   include_empty_intervals: true
   val_size: 512
-  device: cpu
+  device: "cuda"
   text:
     text_cleaners: ["english_cleaners"]
     language: "en"

@@ -12,9 +12,6 @@ from matplotlib import pyplot as plt
 matplotlib.use("Agg")
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
 def to_device(data, device):
     if len(data) == 12:
         (
@@ -32,7 +29,10 @@ def to_device(data, device):
             durations,
         ) = data
 
-        speakers = torch.from_numpy(speakers).long().to(device)
+        # import pdb
+        # pdb.set_trace()
+        speakers = torch.from_numpy(np.zeros(len(speakers))).long().to(device)
+        # speakers = torch.from_numpy(speakers).long().to(device)
         texts = torch.from_numpy(texts).long().to(device)
         src_lens = torch.from_numpy(src_lens).to(device)
         mels = torch.from_numpy(mels).float().to(device)
@@ -88,13 +88,23 @@ def log(
         )
 
 
-def get_mask_from_lengths(lengths, max_len=None):
+def get_mask_from_lengths(lengths, device, max_len=None):
+    # max_len = int(max_len)
     batch_size = lengths.shape[0]
     if max_len is None:
         max_len = torch.max(lengths).item()
-
+    # import pdb
+    # pdb.set_trace()
+    # assert isinstance(max_len, int), f"Expected max_len to be integer, found: {max_len}, type: {type(max_len)}"
     ids = torch.arange(0, max_len).unsqueeze(0).expand(batch_size, -1).to(device)
     mask = ids >= lengths.unsqueeze(1).expand(-1, max_len)
+    # B, T ; B, T
+    # 1, 2, 3, .... 7 >= 5, 5, 5, 5, .... 5
+    # 1, 2, 3, .... 7 >= 7, 7, 7, 7
+    # 0, 0, 0, 0, 0, 1, 1
+    # 0, 0, 0, 0, 0, 0, 0
+    # 0, 0, 0, 1, 1, 1, 1
+    # 5, 7, 3 => 5, 5, 5, ..., 5;
 
     return mask
 
@@ -291,6 +301,9 @@ def pad_2D(inputs, maxlen=None):
         output = np.stack([pad(x, maxlen) for x in inputs])
     else:
         max_len = max(np.shape(x)[0] for x in inputs)
+        # print(max_len)
+        # for x in inputs:
+        #     print(x.shape)
         output = np.stack([pad(x, max_len) for x in inputs])
 
     return output
