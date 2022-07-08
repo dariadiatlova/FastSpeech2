@@ -140,9 +140,9 @@ def main(args, configs):
                     wandb.log({"Train_pitch_loss": val_losses[3]})
                     wandb.log({"Train_energy_loss": val_losses[4]})
                     wandb.log({"Train_duration_loss": val_losses[5]})
-                    "gt/..."
-                    "rec/..."
-                    "gen/..."
+                    # "gt/..."
+                    # "rec/..."
+                    # "gen/..."
 
                     if val_fig is not None:
                         images = wandb.Image(val_fig, caption="Val/step_{}_{}".format(step, tag))
