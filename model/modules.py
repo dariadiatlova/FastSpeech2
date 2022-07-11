@@ -18,6 +18,7 @@ class VarianceAdaptor(nn.Module):
         self.length_regulator = LengthRegulator(preprocess_config["device"])
         self.pitch_predictor = VariancePredictor(model_config)
         self.energy_predictor = VariancePredictor(model_config)
+        self.device = preprocess_config["device"]
 
         self.pitch_feature_level = preprocess_config["preprocessing"]["pitch"]["feature"]
         self.energy_feature_level = preprocess_config["preprocessing"]["energy"]["feature"]
@@ -39,9 +40,7 @@ class VarianceAdaptor(nn.Module):
                 torch.exp(torch.linspace(np.log(pitch_min), np.log(pitch_max), n_bins - 1)), requires_grad=False,
             )
         else:
-            self.pitch_bins = nn.Parameter(
-                torch.linspace(pitch_min, pitch_max, n_bins - 1), requires_grad=False,
-            )
+            self.pitch_bins = nn.Parameter(torch.linspace(pitch_min, pitch_max, n_bins - 1), requires_grad=False)
         if energy_quantization == "log":
             self.energy_bins = nn.Parameter(
                 torch.exp(torch.linspace(np.log(energy_min), np.log(energy_max), n_bins - 1)), requires_grad=False,
@@ -93,12 +92,19 @@ class VarianceAdaptor(nn.Module):
 
         if duration_target is not None:
             x, mel_len = self.length_regulator(x, duration_target, max_len)
+            # print(x.shape)
             duration_rounded = duration_target
         else:
+            # print(f"log_duration_prediction: {log_duration_prediction.shape}")
             duration_rounded = torch.clamp((torch.round(torch.exp(log_duration_prediction) - 1) * d_control), min=0)
+            # print(f"duration_rounded: {duration_rounded.shape}")
             x, mel_len = self.length_regulator(x, duration_rounded, max_len)
-            mel_mask = get_mask_from_lengths(mel_len)
 
+            mel_mask = get_mask_from_lengths(mel_len, device=self.device)
+            # print(f"x: {x.shape}, mask: {mel_mask.shape}")
+        # import pdb
+        # pdb.set_trace()
+        # print(x.shape)
         if self.pitch_feature_level == "frame_level":
             pitch_prediction, pitch_embedding = self.get_pitch_embedding(x, pitch_target, mel_mask, p_control)
             x = x + pitch_embedding
@@ -106,15 +112,7 @@ class VarianceAdaptor(nn.Module):
             energy_prediction, energy_embedding = self.get_energy_embedding(x, energy_target, mel_mask, p_control)
             x = x + energy_embedding
 
-        return (
-            x,
-            pitch_prediction,
-            energy_prediction,
-            log_duration_prediction,
-            duration_rounded,
-            mel_len,
-            mel_mask,
-        )
+        return x, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask
 
 
 class LengthRegulator(nn.Module):

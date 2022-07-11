@@ -103,7 +103,6 @@ class Decoder(nn.Module):
 
     def __init__(self, config):
         super(Decoder, self).__init__()
-
         n_position = config["max_seq_len"] + 1
         d_word_vec = config["transformer"]["decoder_hidden"]
         n_layers = config["transformer"]["decoder_layer"]
@@ -159,7 +158,7 @@ class Decoder(nn.Module):
             mask = mask[:, :max_len]
             slf_attn_mask = slf_attn_mask[:, :, :max_len]
 
-        for dec_layer in self.layer_stack:
+        for i, dec_layer in enumerate(self.layer_stack):
             dec_output, dec_slf_attn = dec_layer(
                 dec_output, mask=mask, slf_attn_mask=slf_attn_mask
             )

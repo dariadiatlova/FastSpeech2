@@ -29,8 +29,6 @@ def to_device(data, device):
             durations,
         ) = data
 
-        # import pdb
-        # pdb.set_trace()
         speakers = torch.from_numpy(np.zeros(len(speakers))).long().to(device)
         # speakers = torch.from_numpy(speakers).long().to(device)
         texts = torch.from_numpy(texts).long().to(device)
@@ -57,13 +55,13 @@ def to_device(data, device):
         )
 
     if len(data) == 6:
-        (ids, raw_texts, speakers, texts, src_lens, max_src_len) = data
-
-        speakers = torch.from_numpy(speakers).long().to(device)
+        ids, raw_texts, speakers, texts, src_lens, max_src_len = data
+        # speakers = torch.from_numpy(speakers).long().to(device)
+        speakers = torch.from_numpy(np.zeros(len(speakers))).long().to(device)
         texts = torch.from_numpy(texts).long().to(device)
         src_lens = torch.from_numpy(src_lens).to(device)
 
-        return (ids, raw_texts, speakers, texts, src_lens, max_src_len)
+        return ids, raw_texts, speakers, texts, src_lens, max_src_len
 
 
 def log(
@@ -89,7 +87,6 @@ def log(
 
 
 def get_mask_from_lengths(lengths, device, max_len=None):
-    # max_len = int(max_len)
     batch_size = lengths.shape[0]
     if max_len is None:
         max_len = torch.max(lengths).item()
@@ -116,7 +113,7 @@ def expand(values, durations):
     return np.array(out)
 
 
-def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_config):
+def synth_one_sample(targets, predictions, vocoder, preprocess_config):
 
     basename = targets[0][0]
     src_len = predictions[8][0].item()
@@ -124,6 +121,7 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
     mel_prediction = predictions[1][0, :mel_len].detach().transpose(0, 1)
     duration = targets[11][0, :src_len].detach().cpu().numpy()
+
     if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
         pitch = targets[9][0, :src_len].detach().cpu().numpy()
         pitch = expand(pitch, duration)
@@ -135,9 +133,7 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     else:
         energy = targets[10][0, :mel_len].detach().cpu().numpy()
 
-    with open(
-        os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
-    ) as f:
+    with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")) as f:
         stats = json.load(f)
         stats = stats["pitch"] + stats["energy"][:2]
 
@@ -151,20 +147,8 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     )
 
     if vocoder is not None:
-        from .model import vocoder_infer
-
-        wav_reconstruction = vocoder_infer(
-            mel_target.unsqueeze(0),
-            vocoder,
-            model_config,
-            preprocess_config,
-        )[0]
-        wav_prediction = vocoder_infer(
-            mel_prediction.unsqueeze(0),
-            vocoder,
-            model_config,
-            preprocess_config,
-        )[0]
+        wav_reconstruction = vocoder(mel_target.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
+        wav_prediction = vocoder(mel_prediction.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
     else:
         wav_reconstruction = wav_prediction = None
 
@@ -211,10 +195,7 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
 
     mel_predictions = predictions[1].transpose(1, 2)
     lengths = predictions[9] * preprocess_config["preprocessing"]["stft"]["hop_length"]
-    wav_predictions = vocoder_infer(
-        mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths
-    )
-
+    wav_predictions = vocoder_infer(mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths)
     sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
     for wav, basename in zip(wav_predictions, basenames):
         wavfile.write(os.path.join(path, "{}.wav".format(basename)), sampling_rate, wav)
@@ -301,9 +282,6 @@ def pad_2D(inputs, maxlen=None):
         output = np.stack([pad(x, maxlen) for x in inputs])
     else:
         max_len = max(np.shape(x)[0] for x in inputs)
-        # print(max_len)
-        # for x in inputs:
-        #     print(x.shape)
         output = np.stack([pad(x, max_len) for x in inputs])
 
     return output

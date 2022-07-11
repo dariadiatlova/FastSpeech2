@@ -39,7 +39,8 @@ class Preprocessor:
             config["preprocessing"]["stft"]["hop_length"],
             config["preprocessing"]["stft"]["win_length"],
             config["preprocessing"]["mel"]["n_mel_channels"],
-            config["preprocessing"]["device"]
+            config["preprocessing"]["device"],
+            f_max=config["preprocessing"]["mel"]["mel_fmax"]
         )
 
     def build_from_path(self):

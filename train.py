@@ -3,6 +3,7 @@ import os
 
 import torch
 import torch.nn as nn
+import torchaudio
 import wandb
 import yaml
 from torch.utils.data import DataLoader
@@ -11,7 +12,7 @@ from tqdm import tqdm
 from dataset import Dataset
 from evaluate import evaluate
 from model import FastSpeech2Loss
-from utils.model import get_model, get_vocoder, get_param_num
+from utils.model import get_model, get_param_num
 from utils.tools import to_device, synth_one_sample
 
 
@@ -30,7 +31,7 @@ def main(args, configs):
 
     # Prepare model
     model, optimizer = get_model(args, configs[:-1], device, train=True)
-    model = nn.DataParallel(model)
+    # model = nn.DataParallel(model)
 
     wandb.watch(model, log_freq=wandb_config["log_every_n_steps"])
     num_param = get_param_num(model)
@@ -38,7 +39,7 @@ def main(args, configs):
     print("Number of FastSpeech2 Parameters:", num_param)
 
     # Load vocoder
-    vocoder = get_vocoder(model_config, device)
+    vocoder = torch.jit.load(train_config["vocoder_path"], map_location=device)
 
     # Init logger
     for p in train_config["path"].values():
@@ -70,6 +71,7 @@ def main(args, configs):
                 batch = to_device(batch, device)
 
                 # Forward
+                # _, _, _  = batch[2:]
                 output = model(*(batch[2:]))
 
                 # Cal Loss
@@ -97,19 +99,19 @@ def main(args, configs):
                         f.write(message1 + message2 + "\n")
 
                     outer_bar.write(message1 + message2)
-                    wandb.log({"Train Total_loss": losses[0]})
-                    wandb.log({"Train Mel_loss": losses[1]})
-                    wandb.log({"Train Mel_postnet_loss": losses[2]})
-                    wandb.log({"Train Pitch_loss": losses[3]})
-                    wandb.log({"Train Energy_loss": losses[4]})
-                    wandb.log({"Train Duration_loss": losses[5]})
+                    wandb.log({"Train_loss/Total_loss": losses[0]})
+                    wandb.log({"Train_loss/Mel_loss": losses[1]})
+                    wandb.log({"Train_loss/Mel_postnet_loss": losses[2]})
+                    wandb.log({"Train_loss/Pitch_loss": losses[3]})
+                    wandb.log({"Train_loss/Energy_loss": losses[4]})
+                    wandb.log({"Train_loss/Duration_loss": losses[5]})
 
                 if step % synth_step == 0:
-                    fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(batch, output, vocoder,
-                                                                                    model_config, preprocess_config)
+                    fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(batch, output,
+                                                                                    vocoder, preprocess_config)
                     if fig is not None:
                         images = wandb.Image(fig, caption="Training/step_{}_{}".format(step, tag))
-                        wandb.log({"train_spectrograms": images})
+                        wandb.log({"Train_spectrograms/Spectrogram": images})
 
                     sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
                     if wav_reconstruction is not None:
@@ -117,36 +119,40 @@ def main(args, configs):
                         reconstructed_audio = wandb.Audio(wav_reconstruction,
                                                           caption="Training/step_{}_{}".format(step, tag),
                                                           sample_rate=sampling_rate)
-                        wandb.log({"train_wav_reconstruction": reconstructed_audio})
+                        wandb.log({"Train_audio/wav_reconstruction": reconstructed_audio})
 
                     if wav_prediction is not None:
                         predicted_audio = wandb.Audio(wav_prediction,
                                                       caption="Training/step_{}_{}".format(step, tag),
                                                       sample_rate=sampling_rate)
-                        wandb.log({"train_wav_predicted": predicted_audio})
+                        wandb.log({"Train_audio/wav_predicted": predicted_audio})
+
+                    ground_truth_audio_path = f"{preprocess_config['path']['raw_path']}/{tag}.wav"
+                    ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
+                    ground_truth_wav = ground_truth_wav.squeeze(0)
+                    ground_truth_audio = wandb.Audio(ground_truth_wav, caption="Train/step_{}_{}".format(step, tag),
+                                                     sample_rate=sampling_rate)
+                    wandb.log({"Train_audio/ground_truth": ground_truth_audio})
 
                 if step % val_step == 0:
                     model.eval()
-                    message, logged_data = evaluate(model, step, total_step, configs, device, None, vocoder)
+                    message, logged_data = evaluate(model, step, total_step, configs, device, vocoder)
                     val_losses = logged_data[0]
                     val_fig, val_wav_reconstruction, val_wav_prediction = logged_data[1], logged_data[2], logged_data[3]
                     tag = logged_data[4]
                     with open(os.path.join(val_log_path, "log.txt"), "a") as f:
                         f.write(message + "\n")
                     outer_bar.write(message)
-                    wandb.log({"Val_total_loss": val_losses[0]})
-                    wandb.log({"Train_mel_loss": val_losses[1]})
-                    wandb.log({"Train_mel_postnet_loss": val_losses[2]})
-                    wandb.log({"Train_pitch_loss": val_losses[3]})
-                    wandb.log({"Train_energy_loss": val_losses[4]})
-                    wandb.log({"Train_duration_loss": val_losses[5]})
-                    # "gt/..."
-                    # "rec/..."
-                    # "gen/..."
+                    wandb.log({"Val_loss/Total_loss": val_losses[0]})
+                    wandb.log({"Val_loss/Mel_loss": val_losses[1]})
+                    wandb.log({"Val_loss/Mel_postnet_loss": val_losses[2]})
+                    wandb.log({"Val_loss/Pitch_loss": val_losses[3]})
+                    wandb.log({"Val_loss/Energy_loss": val_losses[4]})
+                    wandb.log({"Val_loss/Duration_loss": val_losses[5]})
 
                     if val_fig is not None:
                         images = wandb.Image(val_fig, caption="Val/step_{}_{}".format(step, tag))
-                        wandb.log({"val_spectrograms": images})
+                        wandb.log({"Val_spectrograms/Spectrograms": images})
 
                     sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
 
@@ -154,14 +160,20 @@ def main(args, configs):
                         reconstructed_audio = wandb.Audio(val_wav_reconstruction,
                                                           caption="Val/step_{}_{}".format(step, tag),
                                                           sample_rate=sampling_rate)
-                        wandb.log({"val_wav_reconstruction": reconstructed_audio})
+                        wandb.log({"Val_audio/wav_reconstruction": reconstructed_audio})
 
                     if val_wav_prediction is not None:
                         predicted_audio = wandb.Audio(val_wav_prediction,
                                                       caption="Val/step_{}_{}".format(step, tag),
                                                       sample_rate=sampling_rate)
-                        wandb.log({"val_wav_predicted": predicted_audio})
+                        wandb.log({"Val_audio/wav_predicted": predicted_audio})
 
+                    ground_truth_audio_path = f"{preprocess_config['path']['raw_path']}/{tag}.wav"
+                    ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
+                    ground_truth_wav = ground_truth_wav.squeeze(0)
+                    ground_truth_audio = wandb.Audio(ground_truth_wav, caption="Val/step_{}_{}".format(step, tag),
+                                                     sample_rate=sampling_rate)
+                    wandb.log({"Val_audio/ground_truth": ground_truth_audio})
                     model.train()
 
                 if step % save_step == 0:
