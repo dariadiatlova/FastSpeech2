@@ -18,18 +18,21 @@ class VarianceAdaptor(nn.Module):
         self.length_regulator = LengthRegulator(preprocess_config["device"])
         self.pitch_predictor = VariancePredictor(model_config)
         self.energy_predictor = VariancePredictor(model_config)
-        self.device = preprocess_config["device"]
 
-        self.pitch_feature_level = preprocess_config["preprocessing"]["pitch"]["feature"]
-        self.energy_feature_level = preprocess_config["preprocessing"]["energy"]["feature"]
+        self.device = preprocess_config["device"]
+        self.pitch_feature_level = preprocess_config["pitch"]["feature"]
+        self.energy_feature_level = preprocess_config["energy"]["feature"]
+
         assert self.pitch_feature_level in ["phoneme_level", "frame_level"]
         assert self.energy_feature_level in ["phoneme_level", "frame_level"]
 
         pitch_quantization = model_config["variance_embedding"]["pitch_quantization"]
         energy_quantization = model_config["variance_embedding"]["energy_quantization"]
         n_bins = model_config["variance_embedding"]["n_bins"]
+
         assert pitch_quantization in ["linear", "log"]
         assert energy_quantization in ["linear", "log"]
+
         with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")) as f:
             stats = json.load(f)
             pitch_min, pitch_max = stats["pitch"][:2]
@@ -51,65 +54,49 @@ class VarianceAdaptor(nn.Module):
         self.pitch_embedding = nn.Embedding(n_bins, model_config["transformer"]["encoder_hidden"])
         self.energy_embedding = nn.Embedding(n_bins, model_config["transformer"]["encoder_hidden"])
 
-    def get_pitch_embedding(self, x, target, mask, control):
+    def get_pitch_embedding(self, device, x, target, mask, control):
         prediction = self.pitch_predictor(x, mask)
+        self.pitch_embedding.to(device)
         if target is not None:
-            embedding = self.pitch_embedding(torch.bucketize(target, self.pitch_bins))
+            embedding = self.pitch_embedding(torch.bucketize(target.to(device), self.pitch_bins.to(device)))
         else:
             prediction = prediction * control
-            embedding = self.pitch_embedding(torch.bucketize(prediction, self.pitch_bins))
+            embedding = self.pitch_embedding(torch.bucketize(prediction.to(device), self.pitch_bins.to(device)))
         return prediction, embedding
 
-    def get_energy_embedding(self, x, target, mask, control):
+    def get_energy_embedding(self, device, x, target, mask, control):
         prediction = self.energy_predictor(x, mask)
         if target is not None:
-            embedding = self.energy_embedding(torch.bucketize(target, self.energy_bins))
+            embedding = self.energy_embedding(torch.bucketize(target.to(device), self.energy_bins.to(device)))
         else:
             prediction = prediction * control
-            embedding = self.energy_embedding(torch.bucketize(prediction, self.energy_bins))
+            embedding = self.energy_embedding(torch.bucketize(prediction.to(device), self.energy_bins.to(device)))
         return prediction, embedding
 
-    def forward(
-        self,
-        x,
-        src_mask,
-        mel_mask=None,
-        max_len=None,
-        pitch_target=None,
-        energy_target=None,
-        duration_target=None,
-        p_control=1.0,
-        e_control=1.0,
-        d_control=1.0,
-    ):
+    def forward(self, device, x, src_mask, mel_mask=None, max_len=None, pitch_target=None, energy_target=None,
+                duration_target=None, p_control=1.0, d_control=1.0):
+
         log_duration_prediction = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
-            pitch_prediction, pitch_embedding = self.get_pitch_embedding(x, pitch_target, src_mask, p_control)
+            pitch_prediction, pitch_embedding = self.get_pitch_embedding(device, x, pitch_target, src_mask, p_control)
             x = x + pitch_embedding
         if self.energy_feature_level == "phoneme_level":
-            energy_prediction, energy_embedding = self.get_energy_embedding(x, energy_target, src_mask, p_control)
+            energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, src_mask, p_control)
             x = x + energy_embedding
 
         if duration_target is not None:
             x, mel_len = self.length_regulator(x, duration_target, max_len)
-            # print(x.shape)
             duration_rounded = duration_target
         else:
-            # print(f"log_duration_prediction: {log_duration_prediction.shape}")
             duration_rounded = torch.clamp((torch.round(torch.exp(log_duration_prediction) - 1) * d_control), min=0)
-            # print(f"duration_rounded: {duration_rounded.shape}")
             x, mel_len = self.length_regulator(x, duration_rounded, max_len)
-
             mel_mask = get_mask_from_lengths(mel_len, device=self.device)
-            # print(f"x: {x.shape}, mask: {mel_mask.shape}")
-        # import pdb
-        # pdb.set_trace()
-        # print(x.shape)
+
         if self.pitch_feature_level == "frame_level":
-            pitch_prediction, pitch_embedding = self.get_pitch_embedding(x, pitch_target, mel_mask, p_control)
+            pitch_prediction, pitch_embedding = self.get_pitch_embedding(device, x, pitch_target, mel_mask, p_control)
             x = x + pitch_embedding
         if self.energy_feature_level == "frame_level":
-            energy_prediction, energy_embedding = self.get_energy_embedding(x, energy_target, mel_mask, p_control)
+            energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, mel_mask, p_control)
             x = x + energy_embedding
 
         return x, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask
@@ -167,27 +154,12 @@ class VariancePredictor(nn.Module):
         self.conv_layer = nn.Sequential(
             OrderedDict(
                 [
-                    (
-                        "conv1d_1",
-                        Conv(
-                            self.input_size,
-                            self.filter_size,
-                            kernel_size=self.kernel,
-                            padding=(self.kernel - 1) // 2,
-                        ),
-                    ),
+                    ("conv1d_1",
+                     Conv(self.input_size, self.filter_size, kernel_size=self.kernel, padding=(self.kernel - 1) // 2)),
                     ("relu_1", nn.ReLU()),
                     ("layer_norm_1", nn.LayerNorm(self.filter_size)),
                     ("dropout_1", nn.Dropout(self.dropout)),
-                    (
-                        "conv1d_2",
-                        Conv(
-                            self.filter_size,
-                            self.filter_size,
-                            kernel_size=self.kernel,
-                            padding=1,
-                        ),
-                    ),
+                    ("conv1d_2", Conv(self.filter_size, self.filter_size, kernel_size=self.kernel, padding=1)),
                     ("relu_2", nn.ReLU()),
                     ("layer_norm_2", nn.LayerNorm(self.filter_size)),
                     ("dropout_2", nn.Dropout(self.dropout)),
@@ -213,17 +185,7 @@ class Conv(nn.Module):
     Convolution Module
     """
 
-    def __init__(
-        self,
-        in_channels,
-        out_channels,
-        kernel_size=1,
-        stride=1,
-        padding=0,
-        dilation=1,
-        bias=True,
-        w_init="linear",
-    ):
+    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True):
         """
         :param in_channels: dimension of input
         :param out_channels: dimension of output
@@ -236,19 +198,11 @@ class Conv(nn.Module):
         """
         super(Conv, self).__init__()
 
-        self.conv = nn.Conv1d(
-            in_channels,
-            out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            bias=bias,
-        )
+        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding,
+                              dilation=dilation, bias=bias)
 
     def forward(self, x):
         x = x.contiguous().transpose(1, 2)
         x = self.conv(x)
         x = x.contiguous().transpose(1, 2)
-
         return x

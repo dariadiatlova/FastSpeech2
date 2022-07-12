@@ -1,3 +1,10 @@
+# uncomment next line for installation on a100-1
+# conda install pytorch torchvision torchaudio cudatoolkit=11.6 -c pytorch -c conda-forge
+tensorboardX==1.8
+pytorch-lightning
+ninja
+hydra-core
+
 g2p-en==2.1.0
 inflect==4.1.0
 librosa==0.7.2
@@ -10,9 +17,5 @@ PyYAML==5.4.1
 scikit-learn==1.1.1
 scipy==1.8.1
 soundfile==0.10.3.post1
-tensorboard==2.2.2
 tgt==1.4.4
-torch==1.11.0
-tqdm==4.46.1
 unidecode==1.1.1
-torchaudio==0.11.0

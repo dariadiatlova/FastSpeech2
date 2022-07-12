@@ -1,3 +1,4 @@
+seed: 8000
 device: "cuda"
 path:
   ckpt_path: "/root/dasha/FastSpeech2/output"
@@ -6,7 +7,7 @@ path:
 phones_mapping_path: "/root/dasha/mfa/phones_mapping.json"
 vocoder_path: "/root/andrey_b/DeepVKTTS/train/outputs/2022-05-20/13-39-44/hifiGan/LJ_generator.pt"
 optimizer:
-  batch_size: 16
+  batch_size: 64
   betas: [0.9, 0.98]
   eps: 0.000000001
   weight_decay: 0.0

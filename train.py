@@ -1,213 +1,44 @@
-import argparse
-import os
+import hydra
 
-import torch
-import torch.nn as nn
-import torchaudio
-import wandb
-import yaml
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+from pytorch_lightning import seed_everything, Trainer
+from pytorch_lightning.callbacks import TQDMProgressBar, ModelCheckpoint
+from pytorch_lightning.loggers import WandbLogger
 
-from dataset import Dataset
-from evaluate import evaluate
-from model import FastSpeech2Loss
-from utils.model import get_model, get_param_num
-from utils.tools import to_device, synth_one_sample
+from model.lightning_model import FastSpeechLightning
+from utils.model import get_dataloader
 
 
-def main(args, configs):
-    print("Prepare training ...")
-    preprocess_config, model_config, train_config, wandb_config = configs
-    device = train_config["device"]
-    run = wandb.init(project=wandb_config["project"])
+@hydra.main(version_base=None, config_path="config", config_name="train_ljspeech")
+def train(cfg) -> None:
+    seed_everything(cfg.seed)
+    wandb_logger = WandbLogger(save_dir=cfg.wandb.save_dir, project=cfg.wandb.project, log_model=False,
+                               offline=cfg.wandb.offline, config=cfg)
 
-    # Get dataset
-    dataset = Dataset("train.txt", preprocess_config, train_config, sort=True, drop_last=True)
-    batch_size = train_config["optimizer"]["batch_size"]
-    group_size = 4  # Set this larger than 1 to enable sorting in Dataset
-    assert batch_size * group_size < len(dataset)
-    loader = DataLoader(dataset, batch_size=batch_size * group_size, shuffle=True, collate_fn=dataset.collate_fn)
+    callbacks = ModelCheckpoint(dirpath=str(wandb_logger.experiment.dir),
+                                monitor="train_loss/total_loss",
+                                save_top_k=4,
+                                every_n_train_steps=cfg.wandb.log_every_n_steps,
+                                save_last=cfg.wandb.save_last)
 
-    # Prepare model
-    model, optimizer = get_model(args, configs[:-1], device, train=True)
-    # model = nn.DataParallel(model)
+    progress_bar = TQDMProgressBar(refresh_rate=cfg.wandb.progress_bar_refresh_rate)
 
-    wandb.watch(model, log_freq=wandb_config["log_every_n_steps"])
-    num_param = get_param_num(model)
-    Loss = FastSpeech2Loss(preprocess_config, model_config).to(device)
-    print("Number of FastSpeech2 Parameters:", num_param)
+    trainer = Trainer(max_steps=cfg.wandb.total_step,
+                      check_val_every_n_epoch=cfg.wandb.val_step,
+                      log_every_n_steps=cfg.wandb.log_every_n_steps,
+                      logger=wandb_logger,
+                      gpus=cfg.n_gpus,
+                      callbacks=[callbacks, progress_bar],
+                      strategy="ddp")
 
-    # Load vocoder
-    vocoder = torch.jit.load(train_config["vocoder_path"], map_location=device)
+    train_loader = get_dataloader(config=cfg.preprocess, train=True, to_synthesis=None)
+    synthesis_loader = get_dataloader(config=cfg.preprocess, train=False, to_synthesis=cfg.preprocess.synthesis_size)
+    model = FastSpeechLightning(cfg)
+    if cfg.checkpoint_path is not None:
+        model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path,
+                                           config=cfg)
 
-    # Init logger
-    for p in train_config["path"].values():
-        os.makedirs(p, exist_ok=True)
-    train_log_path = os.path.join(train_config["path"]["log_path"], "train")
-    val_log_path = os.path.join(train_config["path"]["log_path"], "val")
-    os.makedirs(train_log_path, exist_ok=True)
-    os.makedirs(val_log_path, exist_ok=True)
-
-    # Training
-    step = args.restore_step + 1
-    epoch = 1
-    grad_acc_step = train_config["optimizer"]["grad_acc_step"]
-    grad_clip_thresh = train_config["optimizer"]["grad_clip_thresh"]
-    total_step = train_config["step"]["total_step"]
-    log_step = train_config["step"]["log_step"]
-    save_step = train_config["step"]["save_step"]
-    synth_step = train_config["step"]["synth_step"]
-    val_step = train_config["step"]["val_step"]
-
-    outer_bar = tqdm(total=total_step, desc="Training", position=0)
-    outer_bar.n = args.restore_step
-    outer_bar.update()
-
-    while True:
-        inner_bar = tqdm(total=len(loader), desc="Epoch {}".format(epoch), position=1)
-        for batchs in loader:
-            for batch in batchs:
-                batch = to_device(batch, device)
-
-                # Forward
-                # _, _, _  = batch[2:]
-                output = model(*(batch[2:]))
-
-                # Cal Loss
-                losses = Loss(batch, output)
-                total_loss = losses[0]
-
-                # Backward
-                total_loss = total_loss / grad_acc_step
-                total_loss.backward()
-                if step % grad_acc_step == 0:
-                    # Clipping gradients to avoid gradient explosion
-                    nn.utils.clip_grad_norm_(model.parameters(), grad_clip_thresh)
-
-                    # Update weights
-                    optimizer.step_and_update_lr()
-                    optimizer.zero_grad()
-
-                if step % log_step == 0:
-                    losses = [l.item() for l in losses]
-                    message1 = "Step {}/{}, ".format(step, total_step)
-                    message2 = "Total Loss: {:.4f}, Mel Loss: {:.4f}, Mel PostNet Loss: {:.4f}, Pitch Loss: {:.4f}, " \
-                               "Energy Loss: {:.4f}, Duration Loss: {:.4f}".format(*losses)
-
-                    with open(os.path.join(train_log_path, "log.txt"), "a") as f:
-                        f.write(message1 + message2 + "\n")
-
-                    outer_bar.write(message1 + message2)
-                    wandb.log({"Train_loss/Total_loss": losses[0]})
-                    wandb.log({"Train_loss/Mel_loss": losses[1]})
-                    wandb.log({"Train_loss/Mel_postnet_loss": losses[2]})
-                    wandb.log({"Train_loss/Pitch_loss": losses[3]})
-                    wandb.log({"Train_loss/Energy_loss": losses[4]})
-                    wandb.log({"Train_loss/Duration_loss": losses[5]})
-
-                if step % synth_step == 0:
-                    fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(batch, output,
-                                                                                    vocoder, preprocess_config)
-                    if fig is not None:
-                        images = wandb.Image(fig, caption="Training/step_{}_{}".format(step, tag))
-                        wandb.log({"Train_spectrograms/Spectrogram": images})
-
-                    sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
-                    if wav_reconstruction is not None:
-
-                        reconstructed_audio = wandb.Audio(wav_reconstruction,
-                                                          caption="Training/step_{}_{}".format(step, tag),
-                                                          sample_rate=sampling_rate)
-                        wandb.log({"Train_audio/wav_reconstruction": reconstructed_audio})
-
-                    if wav_prediction is not None:
-                        predicted_audio = wandb.Audio(wav_prediction,
-                                                      caption="Training/step_{}_{}".format(step, tag),
-                                                      sample_rate=sampling_rate)
-                        wandb.log({"Train_audio/wav_predicted": predicted_audio})
-
-                    ground_truth_audio_path = f"{preprocess_config['path']['raw_path']}/{tag}.wav"
-                    ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
-                    ground_truth_wav = ground_truth_wav.squeeze(0)
-                    ground_truth_audio = wandb.Audio(ground_truth_wav, caption="Train/step_{}_{}".format(step, tag),
-                                                     sample_rate=sampling_rate)
-                    wandb.log({"Train_audio/ground_truth": ground_truth_audio})
-
-                if step % val_step == 0:
-                    model.eval()
-                    message, logged_data = evaluate(model, step, total_step, configs, device, vocoder)
-                    val_losses = logged_data[0]
-                    val_fig, val_wav_reconstruction, val_wav_prediction = logged_data[1], logged_data[2], logged_data[3]
-                    tag = logged_data[4]
-                    with open(os.path.join(val_log_path, "log.txt"), "a") as f:
-                        f.write(message + "\n")
-                    outer_bar.write(message)
-                    wandb.log({"Val_loss/Total_loss": val_losses[0]})
-                    wandb.log({"Val_loss/Mel_loss": val_losses[1]})
-                    wandb.log({"Val_loss/Mel_postnet_loss": val_losses[2]})
-                    wandb.log({"Val_loss/Pitch_loss": val_losses[3]})
-                    wandb.log({"Val_loss/Energy_loss": val_losses[4]})
-                    wandb.log({"Val_loss/Duration_loss": val_losses[5]})
-
-                    if val_fig is not None:
-                        images = wandb.Image(val_fig, caption="Val/step_{}_{}".format(step, tag))
-                        wandb.log({"Val_spectrograms/Spectrograms": images})
-
-                    sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
-
-                    if val_wav_reconstruction is not None:
-                        reconstructed_audio = wandb.Audio(val_wav_reconstruction,
-                                                          caption="Val/step_{}_{}".format(step, tag),
-                                                          sample_rate=sampling_rate)
-                        wandb.log({"Val_audio/wav_reconstruction": reconstructed_audio})
-
-                    if val_wav_prediction is not None:
-                        predicted_audio = wandb.Audio(val_wav_prediction,
-                                                      caption="Val/step_{}_{}".format(step, tag),
-                                                      sample_rate=sampling_rate)
-                        wandb.log({"Val_audio/wav_predicted": predicted_audio})
-
-                    ground_truth_audio_path = f"{preprocess_config['path']['raw_path']}/{tag}.wav"
-                    ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
-                    ground_truth_wav = ground_truth_wav.squeeze(0)
-                    ground_truth_audio = wandb.Audio(ground_truth_wav, caption="Val/step_{}_{}".format(step, tag),
-                                                     sample_rate=sampling_rate)
-                    wandb.log({"Val_audio/ground_truth": ground_truth_audio})
-                    model.train()
-
-                if step % save_step == 0:
-                    model_save_path = os.path.join(train_config["path"]["ckpt_path"], "{}.pth.tar".format(step))
-                    torch.save({"model": model.state_dict(),
-                                "optimizer": optimizer._optimizer.state_dict()},
-                               model_save_path)
-                    artifact = wandb.Artifact('model', type='model')
-                    artifact.add_file(model_save_path)
-                    run.log_artifact(artifact)
-
-            if step == total_step:
-                quit()
-            step += 1
-            outer_bar.update(1)
-
-        inner_bar.update(1)
-        epoch += 1
+    trainer.fit(model, train_loader, synthesis_loader)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--restore_step", type=int, default=0)
-    parser.add_argument("-p", "--preprocess_config", type=str, required=True, help="path to preprocess.yaml")
-    parser.add_argument("-m", "--model_config", type=str, required=True, help="path to model.yaml")
-    parser.add_argument("-t", "--train_config", type=str, required=True, help="path to train.yaml")
-    parser.add_argument("-w", "--wandb_config", type=str, required=True, help="path to wandb.yaml")
-    args = parser.parse_args()
-
-    # Read Config
-    preprocess_config = yaml.load(open(args.preprocess_config, "r"), Loader=yaml.FullLoader)
-    model_config = yaml.load(open(args.model_config, "r"), Loader=yaml.FullLoader)
-    train_config = yaml.load(open(args.train_config, "r"), Loader=yaml.FullLoader)
-    wandb_config = yaml.load(open(args.wandb_config, "r"), Loader=yaml.FullLoader)
-    configs = (preprocess_config, model_config, train_config, wandb_config)
-
-    main(args, configs)
+    train()

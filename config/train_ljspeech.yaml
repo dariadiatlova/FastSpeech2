@@ -1,0 +1,87 @@
+seed: 8000
+n_gpus: 4
+checkpoint_path: null
+vocoder_path: "/root/andrey_b/DeepVKTTS/train/outputs/2022-05-20/13-39-44/hifiGan/LJ_generator.pt"
+
+wandb:
+  gt_audio_directory_path: "/root/dasha/wavs"
+  save_dir: null
+  progress_bar_refresh_rate: 1
+  checkpoint_directory: null
+  project: "FastSpeechLightning"
+  offline: false
+  log_every_n_steps: 1
+  val_step: 10000
+  save_step: 25000
+  total_step: 100000
+  save_last: true
+
+preprocess:
+  device: "cuda"
+  dataset: "LJSpeech"
+  batch_size: 16
+  sort: false
+  drop_last: false
+  include_empty_intervals: true
+  val_size: 512
+  synthesis_size: 32
+  path:
+    raw_path: "/root/dasha/mfa/aligned_corpus"
+    preprocessed_path: "/root/dasha/updated_preprocessed_data"
+    phones_mapping_path: "/root/dasha/mfa/phones_mapping.json"
+    log_path: "/root/dasha/FastSpeech2/output"
+    ckpt_path: null
+  audio:
+    sampling_rate: 22050
+    max_wav_value: 32768.0
+  stft:
+    filter_length: 1024
+    hop_length: 256
+    win_length: 1024
+  mel:
+    n_mel_channels: 80
+    mel_fmin: 0
+    mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
+  pitch:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True
+  energy:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True
+
+model:
+  multi_speaker: False
+  device: "cuda"
+  max_seq_len: 1000
+
+  transformer:
+    encoder_layer: 4
+    encoder_head: 2
+    encoder_hidden: 256
+    decoder_layer: 6
+    decoder_head: 2
+    decoder_hidden: 256
+    conv_filter_size: 1024
+    conv_kernel_size: [ 9, 1 ]
+    encoder_dropout: 0.2
+    decoder_dropout: 0.2
+
+  variance_predictor:
+    filter_size: 256
+    kernel_size: 3
+    dropout: 0.5
+
+  variance_embedding:
+    pitch_quantization: "linear" # support 'linear' or 'log', 'log' is allowed only if the pitch values are not normalized during preprocessing
+    energy_quantization: "linear" # support 'linear' or 'log', 'log' is allowed only if the energy values are not normalized during preprocessing
+    n_bins: 256
+
+  optimizer:
+    betas: [ 0.9, 0.98 ]
+    eps: 0.000000001
+    weight_decay: 0.0
+    grad_clip_thresh: 1.0
+    grad_acc_step: 1
+    warm_up_step: 4000
+    anneal_steps: [ 300000, 400000, 500000 ]
+    anneal_rate: 0.3

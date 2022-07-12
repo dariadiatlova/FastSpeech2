@@ -12,6 +12,29 @@ from matplotlib import pyplot as plt
 matplotlib.use("Agg")
 
 
+def torch_from_numpy(data):
+    if len(data) == 12:
+        ids, raw_texts, speakers, texts, src_lens, max_src_len = data[:6]
+        mels, mel_lens, max_mel_len, pitches, energies, durations = data[6:]
+        speakers = torch.from_numpy(np.zeros(len(speakers))).long()
+        texts = torch.from_numpy(texts).long()
+        src_lens = torch.from_numpy(src_lens)
+        mels = torch.from_numpy(mels).float()
+        mel_lens = torch.from_numpy(mel_lens)
+        pitches = torch.from_numpy(pitches).float()
+        energies = torch.from_numpy(energies)
+        durations = torch.from_numpy(durations).long()
+        return ids, raw_texts, speakers, texts, src_lens, max_src_len, mels, \
+               mel_lens, max_mel_len, pitches, energies, durations
+
+    if len(data) == 6:
+        ids, raw_texts, speakers, texts, src_lens, max_src_len = data
+        speakers = torch.from_numpy(np.zeros(len(speakers))).long()
+        texts = torch.from_numpy(texts).long()
+        src_lens = torch.from_numpy(src_lens)
+        return ids, raw_texts, speakers, texts, src_lens, max_src_len
+
+
 def to_device(data, device):
     if len(data) == 12:
         (
@@ -90,10 +113,8 @@ def get_mask_from_lengths(lengths, device, max_len=None):
     batch_size = lengths.shape[0]
     if max_len is None:
         max_len = torch.max(lengths).item()
-    # import pdb
-    # pdb.set_trace()
-    # assert isinstance(max_len, int), f"Expected max_len to be integer, found: {max_len}, type: {type(max_len)}"
     ids = torch.arange(0, max_len).unsqueeze(0).expand(batch_size, -1).to(device)
+    lengths = lengths.to(device)
     mask = ids >= lengths.unsqueeze(1).expand(-1, max_len)
     # B, T ; B, T
     # 1, 2, 3, .... 7 >= 5, 5, 5, 5, .... 5
@@ -102,7 +123,6 @@ def get_mask_from_lengths(lengths, device, max_len=None):
     # 0, 0, 0, 0, 0, 0, 0
     # 0, 0, 0, 1, 1, 1, 1
     # 5, 7, 3 => 5, 5, 5, ..., 5;
-
     return mask
 
 
@@ -113,8 +133,7 @@ def expand(values, durations):
     return np.array(out)
 
 
-def synth_one_sample(targets, predictions, vocoder, preprocess_config):
-
+def synth_one_sample(targets, predictions, vocoder, preprocess_config, i):
     basename = targets[0][0]
     src_len = predictions[8][0].item()
     mel_len = predictions[9][0].item()
@@ -155,8 +174,20 @@ def synth_one_sample(targets, predictions, vocoder, preprocess_config):
     return fig, wav_reconstruction, wav_prediction, basename
 
 
-def synth_samples(targets, predictions, vocoder, model_config, preprocess_config, path):
+def synthesize_predicted_wav(i, predictions, vocoder):
+    mel_prediction = predictions[1][i, :].detach().transpose(0, 1)
+    wav_prediction = vocoder(mel_prediction.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
+    return wav_prediction
 
+
+def reconstruct_wav(target, mel_len, vocoder):
+    mel_target = target[6][:mel_len].detach().transpose(0, 1)
+    wav_reconstruction = vocoder(mel_target.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
+    wav_prediction = vocoder(wav_reconstruction.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
+    return wav_prediction
+
+
+def synth_samples(targets, predictions, vocoder, model_config, preprocess_config, path):
     basenames = targets[0]
     for i in range(len(predictions[0])):
         basename = basenames[i]
