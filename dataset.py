@@ -9,7 +9,8 @@ from utils.tools import pad_1D, pad_2D
 
 
 class Dataset(Dataset):
-    def __init__(self, filename, preprocess_config, synthesis_size: Optional[int] = None):
+    def __init__(self, filename, preprocess_config, synthesis_size: Optional[int] = None, sort=False, drop_last=False,
+                 limit: int = None):
         self.dataset_name = preprocess_config["dataset"]
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
         self.batch_size = preprocess_config["batch_size"]
@@ -20,10 +21,13 @@ class Dataset(Dataset):
         self.speaker_map = dict(zip(list(self.speaker_map.values()), list(self.speaker_map.keys())))
         with open(preprocess_config["path"]["phones_mapping_path"], "r") as f:
             self.phones_mapping = json.load(f)
-        self.sort = preprocess_config["sort"]
-        self.drop_last = preprocess_config["drop_last"]
+        self.sort = sort
+        self.drop_last = drop_last
+        self.limit = limit
 
     def __len__(self):
+        if self.limit is not None:
+            return self.limit
         return len(self.text)
 
     def __getitem__(self, idx):
@@ -45,7 +49,6 @@ class Dataset(Dataset):
         return sample
 
     def process_meta(self, filename):
-        counter = 0
         with open(os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8") as f:
             name = []
             speaker = []
@@ -57,10 +60,6 @@ class Dataset(Dataset):
                 speaker.append(s)
                 text.append(t)
                 raw_text.append(r)
-                counter += 1
-                # cat dataset for synthesis
-                if self.synthesis_size is not None and counter >= self.synthesis_size:
-                    return name, speaker, text, raw_text
             return name, speaker, text, raw_text
 
     def reprocess(self, data, idxs):
@@ -95,7 +94,7 @@ class Dataset(Dataset):
         else:
             idx_arr = np.arange(data_size)
 
-        tail = idx_arr[len(idx_arr) - (len(idx_arr) % self.batch_size) :]
+        tail = idx_arr[len(idx_arr) - (len(idx_arr) % self.batch_size):]
         idx_arr = idx_arr[: len(idx_arr) - (len(idx_arr) % self.batch_size)]
         idx_arr = idx_arr.reshape((-1, self.batch_size)).tolist()
         if not self.drop_last and len(tail) > 0:
