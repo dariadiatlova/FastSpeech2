@@ -27,12 +27,14 @@ class FastSpeechLightning(LightningModule):
         self.anneal_rate = config.model.optimizer["anneal_rate"]
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.model.parameters(),
+        self.optimizer = torch.optim.Adam(self.model.parameters(),
                                      betas=self.model_config["optimizer"]["betas"],
                                      eps=self.model_config["optimizer"]["eps"],
                                      weight_decay=self.model_config["optimizer"]["weight_decay"])
-        scheduler = self._scheduler(optimizer)
-        return [optimizer], [scheduler]
+        scheduler = {"scheduler": self._scheduler(self.optimizer),
+                     "interval": 'step',
+                     "frequency": 1}
+        return [self.optimizer], [scheduler]
 
     def _scheduler(self, optimizer):
         def lr_lambda(current_step: int):
@@ -51,7 +53,8 @@ class FastSpeechLightning(LightningModule):
                         f"train_loss/postnet_mel_loss": postnet_mel_loss,
                         f"train_loss/pitch_loss": pitch_loss,
                         f"train_loss/energy_loss": energy_loss,
-                        f"train_loss/duration_loss": duration_loss}
+                        f"train_loss/duration_loss": duration_loss,
+                        f"optimizer_rate/optimizer": self.optimizer.param_groups[0]['lr']}
         self.log_dict(gen_log_dict, on_step=True, on_epoch=False)
         return total_loss
 
@@ -85,13 +88,13 @@ class FastSpeechLightning(LightningModule):
             ground_truth_wav = ground_truth_wav.squeeze(0)
 
             self.logger.experiment.log(
-                {"Validation_audio/predicted": wandb.Audio(
+                {f"Validation_audio/predicted_{i}": wandb.Audio(
                     synthesized_wav, caption=f"Generated_{tag}", sample_rate=self.sampling_rate)}
             )
 
             if self.global_step == 0:
                 # log original audios only ones
                 self.logger.experiment.log(
-                        {"Validation_audio/original": wandb.Audio(
+                        {f"Validation_audio/original{i}": wandb.Audio(
                             ground_truth_wav, caption=f"Original_{tag}", sample_rate=self.sampling_rate)}
                     )

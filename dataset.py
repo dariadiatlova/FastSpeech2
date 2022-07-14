@@ -106,7 +106,8 @@ class Dataset(Dataset):
 
 
 class TextDataset(Dataset):
-    def __init__(self, filepath, preprocess_config, train_config):
+    def __init__(self, filepath, preprocess_config, train_config, filename):
+        super().__init__(filename, preprocess_config)
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
         with open(train_config["phones_mapping_path"], "r") as f:
             self.phones_mapping = json.load(f)

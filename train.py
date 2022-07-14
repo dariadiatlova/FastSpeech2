@@ -34,7 +34,6 @@ def train(cfg) -> None:
 
     train_loader = get_dataloader(config=cfg.preprocess, train=True)
     synthesis_loader = get_dataloader(config=cfg.preprocess, train=False, limit=16)
-    # print(len(train_loader), len(synthesis_loader)) # 184, 1
     model = FastSpeechLightning(cfg)
     if cfg.checkpoint_path is not None:
         model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path, config=cfg)
