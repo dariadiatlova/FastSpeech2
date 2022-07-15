@@ -175,7 +175,8 @@ def synth_one_sample(targets, predictions, vocoder, preprocess_config, i):
 
 
 def synthesize_predicted_wav(i, predictions, vocoder):
-    mel_prediction = predictions[1][i, :].detach().transpose(0, 1)
+    mel_len = predictions[9][i]
+    mel_prediction = predictions[1][i, :mel_len].detach().transpose(0, 1)
     wav_prediction = vocoder(mel_prediction.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
     return wav_prediction
 

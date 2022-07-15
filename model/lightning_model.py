@@ -28,9 +28,10 @@ class FastSpeechLightning(LightningModule):
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.Adam(self.model.parameters(),
-                                     betas=self.model_config["optimizer"]["betas"],
-                                     eps=self.model_config["optimizer"]["eps"],
-                                     weight_decay=self.model_config["optimizer"]["weight_decay"])
+                                          lr=1,
+                                          betas=self.model_config["optimizer"]["betas"],
+                                          eps=self.model_config["optimizer"]["eps"],
+                                          weight_decay=self.model_config["optimizer"]["weight_decay"])
         scheduler = {"scheduler": self._scheduler(self.optimizer),
                      "interval": 'step',
                      "frequency": 1}

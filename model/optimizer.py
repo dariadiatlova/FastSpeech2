@@ -9,6 +9,7 @@ class ScheduledOptim:
 
         self._optimizer = torch.optim.Adam(
             model.parameters(),
+            lr=1,
             betas=model_config["optimizer"]["betas"],
             eps=model_config["optimizer"]["eps"],
             weight_decay=model_config["optimizer"]["weight_decay"],
