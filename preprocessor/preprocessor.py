@@ -59,13 +59,15 @@ class Preprocessor:
         speakers = {}
         counter = 0
         for filename in tqdm(os.listdir(self.in_dir)):
-            if ".wav" not in filename:
+            if ".TextGrid" not in filename:
                 continue
             speaker = filename.split(".")[0]
             speakers[speaker] = counter
             counter += 1
             tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(speaker))
-            if os.path.exists(tg_path):
+            wav_path = os.path.join(self.in_dir, "{}.wav".format(speaker))
+            txt_path = os.path.join(self.in_dir, "{}.txt".format(speaker))
+            if os.path.exists(tg_path) and os.path.exists(wav_path) and os.path.exists(txt_path):
                 ret = self.process_utterance(speaker, self.include_empty_intervals)
                 if ret is None:
                     continue
@@ -167,33 +169,34 @@ class Preprocessor:
         mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
         mel_count = mel_spectrogram.shape[1]
 
+        pitch = pitch[:sum(duration)]
+        energy = energy[:sum(duration)]
+        if np.sum(pitch != 0) <= 1:
+            return None
+
+        # Duration check
+        duration_sum = sum(duration)
+        if duration_sum - mel_count == 1:
+            mel_spectrogram = np.pad(mel_spectrogram,
+                                     ((0, 0), (0, duration_sum - mel_count)),
+                                     mode="constant", constant_values=PAD_MEL_VALUE)
+        mel_count = mel_spectrogram.shape[1]
+
+        assert mel_count == duration_sum, f"Mels and durations mismatch, mel count: {mel_count}, " \
+                                        f"duration count: {duration_sum}."
+
+        assert mel_spectrogram.shape[0] == self.n_mels, f"Incorrect padding, supposed to have: {self.n_mels}, got " \
+                                                        f"{mel_spectrogram.shape[0]}."
         if pitch.shape[0] - mel_count == 1:
             pitch = pitch[:-1]
 
         assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
                                             f"count {pitch.shape[0]}"
 
+        if mel_count - energy.shape[0] == 1:
+            energy = np.pad(energy, (0, 1), mode="constant", constant_values=0)
         assert energy.shape[0] == mel_count, f"Energy isn't count for each mel. Mel count: {mel_count}, energy " \
                                              f"count {energy.shape[0]}"
-
-        pitch = pitch[:sum(duration)]
-        if np.sum(pitch != 0) <= 1:
-            return None
-
-        # Duration check
-        mel_sum = mel_spectrogram.shape[1]
-        duration_sum = sum(duration)
-        if duration_sum - mel_sum == 1:
-            mel_spectrogram = np.pad(mel_spectrogram,
-                                     ((0, 0), (0, duration_sum - mel_sum)),
-                                     mode="constant", constant_values=PAD_MEL_VALUE)
-        mel_sum = mel_spectrogram.shape[1]
-        assert mel_sum == duration_sum, f"Mels and durations mismatch, mel count: {mel_sum}, " \
-                                        f"duration count: {duration_sum}."
-
-        assert mel_spectrogram.shape[0] == self.n_mels, f"Incorrect padding, supposed to have: {self.n_mels}, got " \
-                                                        f"{mel_spectrogram.shape[0]}."
-        energy = energy[:sum(duration)]
 
         if self.pitch_phoneme_averaging:
             # perform linear interpolation
@@ -209,6 +212,9 @@ class Preprocessor:
             # Phoneme-level average
             pos = 0
             for i, d in enumerate(duration):
+                assert pos + d < len(pitch) or d >= 1, f"Warning pos + d: {pos + d}, " \
+                                                       f"when length of pitch: {len(pitch)}," \
+                                                       f"and when d: {d}"
                 if d > 0:
                     pitch[i] = np.mean(pitch[pos: pos + d])
                 else:
@@ -228,15 +234,19 @@ class Preprocessor:
             energy = energy[: len(duration)]
 
         # Save files
+        assert not np.isnan(duration).any(), f"{basename}' sample duration contains nan"
         dur_filename = "0-duration-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
+        assert not np.isnan(pitch).any(), f"{basename}' sample pitch contains nan"
         pitch_filename = "0-pitch-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
+        assert not np.isnan(energy).any(), f"{basename}' sample energy contains nan"
         energy_filename = "0-energy-{}.npy".format(basename)
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
+        assert not np.isnan(mel_spectrogram).any(), f"{basename}' sample mel_spectrogram contains nan"
         mel_filename = "0-mel-{}.npy".format(basename)
         np.save(
             os.path.join(self.out_dir, "mel", mel_filename),
