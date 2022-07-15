@@ -37,9 +37,15 @@ class FastSpeech2(nn.Module):
         var_adaptor_output = self.variance_adaptor(device, output, src_masks, mel_masks, max_mel_len, p_targets, e_targets,
                                                    d_targets, p_control, d_control)
         output, p_predictions, e_predictions, log_d_predictions, d_rounded, mel_lens, mel_masks = var_adaptor_output
-
+        # print(f"Output: {output.shape}")
+        # print(f"Mel lens: {mel_lens}")
+        # print(f"Mel masks: {mel_masks.shape}")
+        # if mels is not None:
+        #     print(f"Mels: {mels.shape}")
         output, mel_masks = self.decoder(output, mel_masks)
+        # print(f"Mel after decocder output: {output.shape}")
         output = self.mel_linear(output)
+        # print(f"Mel after linear output: {output.shape}")
         if mels is not None:
             assert output.shape == mels.shape, f"Expected Variational Adapter Output to be equal to the target mel, " \
                                                f"found target: {mels.shape}, output: {output.shape}."

@@ -26,7 +26,7 @@ preprocess:
   path:
     raw_path: "/root/storage/dasha/natasha/aligned_corpus"
     preprocessed_path: "/root/storage/dasha/natasha/preprocessed_data"
-    phones_mapping_path: "/root/storage/litrec/manifests/ss_mfa_45/wav_text_manifests/grapheme_mapping.txt"
+    phones_mapping_path: "/root/storage/dasha/natasha/russian_phones_mapping.json"
     log_path: "/root/dasha/FastSpeech2/output"
     ckpt_path: null
   audio:
@@ -50,7 +50,7 @@ preprocess:
 model:
   multi_speaker: False
   device: "cuda"
-  max_seq_len: 1000
+  max_seq_len: 2000
 
   transformer:
     encoder_layer: 4

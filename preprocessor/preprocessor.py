@@ -183,7 +183,7 @@ class Preprocessor:
         mel_count = mel_spectrogram.shape[1]
 
         assert mel_count == duration_sum, f"Mels and durations mismatch, mel count: {mel_count}, " \
-                                        f"duration count: {duration_sum}."
+                                          f"duration count: {duration_sum}."
 
         assert mel_spectrogram.shape[0] == self.n_mels, f"Incorrect padding, supposed to have: {self.n_mels}, got " \
                                                         f"{mel_spectrogram.shape[0]}."
@@ -220,7 +220,7 @@ class Preprocessor:
                 else:
                     pitch[i] = 0
                 pos += d
-            pitch = pitch[: len(duration)]
+            pitch = pitch[:len(duration)]
 
         if self.energy_phoneme_averaging:
             # Phoneme-level average
@@ -231,7 +231,7 @@ class Preprocessor:
                 else:
                     energy[i] = 0
                 pos += d
-            energy = energy[: len(duration)]
+            energy = energy[:len(duration)]
 
         # Save files
         assert not np.isnan(duration).any(), f"{basename}' sample duration contains nan"
