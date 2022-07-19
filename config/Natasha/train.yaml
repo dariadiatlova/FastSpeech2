@@ -2,7 +2,7 @@ seed: 8000
 n_gpus: 4
 checkpoint_path: "/root/dasha/lightning/FastSpeech2/wandb/run-20220715_202758-sw5zx7ws/files/last.ckpt"
 vocoder_path: "/root/andrey_b/DelightfulTTS/scripted_models/natasha_vocoder.pt"
-filepath: "/root/storage/dasha/new_sobchack/generated_now.wav"
+filepath: "/root/storage/dasha/new_sobchack/generated_val.wav"
 wandb:
   gt_audio_directory_path: "/root/storage/dasha/now_sobchak_aligned"
   save_dir: null
