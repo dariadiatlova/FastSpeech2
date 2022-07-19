@@ -1,11 +1,11 @@
 device: "cuda"
 path:
-  raw_path: "/root/storage/dasha/natasha/aligned_corpus"
-  preprocessed_path: "/root/storage/dasha/natasha/preprocessed_data"
+  raw_path: "/root/storage/dasha/now_sobchak_aligned"
+  preprocessed_path: "/root/storage/dasha/preprocessed_sobchak"
 
 preprocessing:
   include_empty_intervals: true
-  val_size: 512
+  val_size: 0
   device: "cuda"
   audio:
     sampling_rate: 22050

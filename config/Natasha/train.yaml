@@ -1,10 +1,10 @@
 seed: 8000
 n_gpus: 4
-checkpoint_path: null
+checkpoint_path: "/root/dasha/lightning/FastSpeech2/wandb/run-20220715_202758-sw5zx7ws/files/last.ckpt"
 vocoder_path: "/root/andrey_b/DelightfulTTS/scripted_models/natasha_vocoder.pt"
-filepath: "/root/dasha/test.wav"
+filepath: "/root/storage/dasha/new_sobchack/generated_now.wav"
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/natasha/aligned_corpus"
+  gt_audio_directory_path: "/root/storage/dasha/now_sobchak_aligned"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
@@ -22,10 +22,10 @@ preprocess:
   sort: true
   drop_last: true
   include_empty_intervals: true
-  val_size: 512
+  val_size: 0
   path:
-    raw_path: "/root/storage/dasha/natasha/aligned_corpus"
-    preprocessed_path: "/root/storage/dasha/natasha/preprocessed_data"
+    raw_path: "/root/storage/dasha/now_sobchak_aligned"
+    preprocessed_path: "/root/storage/dasha/preprocessed_sobchak"
     phones_mapping_path: "/root/storage/dasha/natasha/russian_phones_mapping.json"
     log_path: "/root/dasha/FastSpeech2/output"
     ckpt_path: null

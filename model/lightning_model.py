@@ -59,7 +59,7 @@ class FastSpeechLightning(LightningModule):
         self.log_dict(gen_log_dict, on_step=True, on_epoch=False)
         return total_loss
 
-    def forward(self, basenames, speakers, texts, text_lens, max_text_lens):
+    def forward(self, speakers, texts, text_lens, max_text_lens):
         predictions = self.model(self.device,
                                  speakers=speakers, texts=texts, src_lens=text_lens, max_src_len=max_text_lens)
         synthesized_wav = synthesize_predicted_wav(0, predictions, self.vocoder)
