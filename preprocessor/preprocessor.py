@@ -19,6 +19,7 @@ class Preprocessor:
         self.config = config
         self.include_empty_intervals = config["preprocessing"]["include_empty_intervals"]
         self.in_dir = config["path"]["raw_path"]
+        self.text_grids_dir = config["path"]["text_grids_path"]
         self.out_dir = config["path"]["preprocessed_path"]
         self.val_size = config["preprocessing"]["val_size"]
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
@@ -56,19 +57,24 @@ class Preprocessor:
         energy_scaler = StandardScaler()
 
         # Compute pitch, energy, duration, and mel-spectrogram
-        speakers = {}
-        counter = 0
+        self.speakers = {}
+        self.emotions = {}
+
         for filename in tqdm(os.listdir(self.in_dir)):
-            if ".TextGrid" not in filename:
+            if ".wav" not in filename:
                 continue
-            speaker = filename.split(".")[0]
-            speakers[speaker] = counter
-            counter += 1
-            tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(speaker))
-            wav_path = os.path.join(self.in_dir, "{}.wav".format(speaker))
-            txt_path = os.path.join(self.in_dir, "{}.txt".format(speaker))
+
+            short_filename = filename[:-4]
+            speaker_idx, filename_idx, emotion_id = short_filename.split("_")
+
+            self.speakers[f"{speaker_idx}_{filename_idx}_{emotion_id}"] = speaker_idx
+            self.emotions[f"{speaker_idx}_{filename_idx}_{emotion_id}"] = emotion_id
+
+            tg_path = os.path.join(self.text_grids_dir, "{}.TextGrid".format(short_filename))
+            wav_path = os.path.join(self.in_dir, "{}.wav".format(short_filename))
+            txt_path = os.path.join(self.in_dir, "{}.txt".format(short_filename))
             if os.path.exists(tg_path) and os.path.exists(wav_path) and os.path.exists(txt_path):
-                ret = self.process_utterance(speaker, self.include_empty_intervals)
+                ret = self.process_utterance(speaker_idx, filename_idx, emotion_id, self.include_empty_intervals)
                 if ret is None:
                     continue
                 else:
@@ -103,43 +109,58 @@ class Preprocessor:
 
         # Save files
         with open(os.path.join(self.out_dir, "speakers.json"), "w") as f:
-            f.write(json.dumps(speakers))
+            f.write(json.dumps(self.speakers))
+
+        with open(os.path.join(self.out_dir, "emotions.json"), "w") as f:
+            f.write(json.dumps(self.emotions))
 
         with open(os.path.join(self.out_dir, "stats.json"), "w") as f:
             stats = {
-                "pitch": [
-                    float(pitch_min),
-                    float(pitch_max),
-                    float(pitch_mean),
-                    float(pitch_std),
-                ],
-                "energy": [
-                    float(energy_min),
-                    float(energy_max),
-                    float(energy_mean),
-                    float(energy_std),
-                ],
+                "pitch": [float(pitch_min), float(pitch_max), float(pitch_mean), float(pitch_std)],
+                "energy": [float(energy_min), float(energy_max), float(energy_mean), float(energy_std)],
             }
             f.write(json.dumps(stats))
 
         print("Total time: {} hours".format(n_frames * self.hop_length / self.sampling_rate / 3600))
-
         random.shuffle(out)
         out = [r for r in out if r is not None]
 
         # Write metadata
+        train_data, val_data = self.train_val_split(out)
         with open(os.path.join(self.out_dir, "train.txt"), "w", encoding="utf-8") as f:
-            for m in out[self.val_size:]:
+            for m in train_data:
                 f.write(m + "\n")
         with open(os.path.join(self.out_dir, "val.txt"), "w", encoding="utf-8") as f:
-            for m in out[:self.val_size]:
+            for m in val_data:
                 f.write(m + "\n")
         return out
 
-    def process_utterance(self, basename, include_empty_intervals):
-        wav_path = os.path.join(self.in_dir, "{}.wav".format(basename))
-        text_path = os.path.join(self.in_dir, "{}.txt".format(basename))
-        tg_path = os.path.join(self.in_dir, "{}.TextGrid".format(basename))
+    def train_val_split(self, metadata):
+        """Function takes metadata and implement train-val split in the way that all speakers and emotions
+        are in the validation set"""
+        n_speakers = np.unique([*self.speakers.values()]).shape[0]
+        n_emotions = np.unique([*self.emotions.values()]).shape[0]
+        assert self.val_size >= n_speakers * n_emotions, f"Increase the val_size if suppose to have in speakers and" \
+                                                         f"all emotions in the validation set"
+        train_set = []
+        val_set = []
+        emotions = [*self.emotions.values()]
+        # O(n * n_emotions) :c will be good to rewrite
+        for emotion in emotions:
+            temp_speakers_dict = dict(zip(np.unique([*self.speakers.values()]), list(np.zeros(n_speakers))))
+            for sample in metadata:
+                speaker_idx, filename_idx, emotion_idx, text, raw_text = sample.split("|")
+                if emotion_idx == emotion:
+                    if temp_speakers_dict[speaker_idx] == 0:
+                        val_set.append(sample)
+                    else:
+                        train_set.append(sample)
+        return train_set, val_set
+
+    def process_utterance(self, speaker_idx, filename_idx, emotion_idx, include_empty_intervals):
+        wav_path = os.path.join(self.in_dir, f"{speaker_idx}_{filename_idx}_{emotion_idx}.wav")
+        text_path = os.path.join(self.in_dir, f"{speaker_idx}_{filename_idx}_{emotion_idx}.txt")
+        tg_path = os.path.join(self.text_grids_dir, f"{speaker_idx}_{filename_idx}_{emotion_idx}.TextGrid")
 
         # Get alignments
         textgrid = tgt.io.read_textgrid(tg_path, include_empty_intervals=include_empty_intervals)
@@ -234,27 +255,25 @@ class Preprocessor:
             energy = energy[:len(duration)]
 
         # Save files
-        assert not np.isnan(duration).any(), f"{basename}' sample duration contains nan"
-        dur_filename = "0-duration-{}.npy".format(basename)
+        assert not np.isnan(duration).any(), f"{speaker_idx}_{filename_idx}_{emotion_idx} sample duration contains nan"
+        dur_filename = f"{speaker_idx}-duration-{filename_idx}-{emotion_idx}.npy"
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
-        assert not np.isnan(pitch).any(), f"{basename}' sample pitch contains nan"
-        pitch_filename = "0-pitch-{}.npy".format(basename)
+        assert not np.isnan(pitch).any(), f"{speaker_idx}_{filename_idx}_{emotion_idx} sample pitch contains nan"
+        pitch_filename = f"{speaker_idx}-pitch-{filename_idx}-{emotion_idx}.npy"
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
-        assert not np.isnan(energy).any(), f"{basename}' sample energy contains nan"
-        energy_filename = "0-energy-{}.npy".format(basename)
+        assert not np.isnan(energy).any(), f"{speaker_idx}_{filename_idx}_{emotion_idx} sample energy contains nan"
+        energy_filename = f"{speaker_idx}-energy-{filename_idx}-{emotion_idx}.npy"
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
-        assert not np.isnan(mel_spectrogram).any(), f"{basename}' sample mel_spectrogram contains nan"
-        mel_filename = "0-mel-{}.npy".format(basename)
-        np.save(
-            os.path.join(self.out_dir, "mel", mel_filename),
-            mel_spectrogram.T,
-        )
+        assert not np.isnan(mel_spectrogram).any(), \
+            f"{speaker_idx}_{filename_idx}_{emotion_idx} sample mel_spectrogram contains nan"
+        mel_filename = f"{speaker_idx}-mel-{filename_idx}-{emotion_idx}.npy"
+        np.save(os.path.join(self.out_dir, "mel", mel_filename), mel_spectrogram.T)
 
         return (
-            "|".join([basename, "0", text, raw_text]),
+            "|".join([speaker_idx, filename_idx, emotion_idx, text, raw_text]),
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1]

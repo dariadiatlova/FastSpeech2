@@ -1,0 +1,26 @@
+device: "cuda"
+path:
+  text_grids_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs_textgrids"
+  raw_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs"
+  preprocessed_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/preprocessed"
+
+preprocessing:
+  include_empty_intervals: true
+  val_size: 65
+  device: "cuda"
+  audio:
+    sampling_rate: 16000
+  stft:
+    filter_length: 1024
+    hop_length: 256
+    win_length: 1024
+  mel:
+    n_mel_channels: 80
+    mel_fmin: 0
+    mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
+  pitch:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True
+  energy:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True
