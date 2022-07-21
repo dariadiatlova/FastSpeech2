@@ -144,7 +144,7 @@ class Preprocessor:
                                                          f"all emotions in the validation set"
         train_set = []
         val_set = []
-        emotions = [*self.emotions.values()]
+        emotions = np.unique([*self.emotions.values()])
         # O(n * n_emotions) :c will be good to rewrite
         for emotion in emotions:
             temp_speakers_dict = dict(zip(np.unique([*self.speakers.values()]), list(np.zeros(n_speakers))))
@@ -153,8 +153,10 @@ class Preprocessor:
                 if emotion_idx == emotion:
                     if temp_speakers_dict[speaker_idx] == 0:
                         val_set.append(sample)
+                        temp_speakers_dict[speaker_idx] = 1
                     else:
                         train_set.append(sample)
+        assert len(train_set) + len(val_set) == len(metadata)
         return train_set, val_set
 
     def process_utterance(self, speaker_idx, filename_idx, emotion_idx, include_empty_intervals):

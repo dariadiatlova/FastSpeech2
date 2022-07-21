@@ -4,14 +4,14 @@ checkpoint_path: null
 vocoder_path: "/root/andrey_b/DeepVKTTS/train/outputs/2022-05-20/13-39-44/hifiGan/LJ_generator.pt"
 filepath: null
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/now_sobchak_aligned"
+  gt_audio_directory_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
-  project: "FastSpeechNatasha"
+  project: "DefaultRunEmoTTS"
   offline: false
   log_every_n_steps: 1
-  val_step: 10
+  val_step: 30
   save_step: 100000
   total_step: 70000
   save_last: true
@@ -24,13 +24,12 @@ preprocess:
   include_empty_intervals: true
   val_size: 0
   path:
-    raw_path: "/root/storage/dasha/now_sobchak_aligned"
-    preprocessed_path: "/root/storage/dasha/preprocessed_sobchak"
-    phones_mapping_path: "/root/storage/dasha/natasha/russian_phones_mapping.json"
-    log_path: "/root/dasha/FastSpeech2/output"
+    raw_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs"
+    preprocessed_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/preprocessed"
+    phones_mapping_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/english_phones_mapping.json"
     ckpt_path: null
   audio:
-    sampling_rate: 22050
+    sampling_rate: 16000
     max_wav_value: 32768.0
   stft:
     filter_length: 1024
@@ -48,9 +47,10 @@ preprocess:
     normalization: True
 
 model:
-  multi_speaker: False
+  emotion: True
+  multi_speaker: True
   device: "cuda"
-  max_seq_len: 2000
+  max_seq_len: 1000
 
   transformer:
     encoder_layer: 4

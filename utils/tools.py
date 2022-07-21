@@ -13,10 +13,11 @@ matplotlib.use("Agg")
 
 
 def torch_from_numpy(data):
-    if len(data) == 12:
-        ids, raw_texts, speakers, texts, src_lens, max_src_len = data[:6]
-        mels, mel_lens, max_mel_len, pitches, energies, durations = data[6:]
-        speakers = torch.from_numpy(np.zeros(len(speakers))).long()
+    if len(data) == 13:
+        ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len = data[:7]
+        mels, mel_lens, max_mel_len, pitches, energies, durations = data[7:]
+        speakers = torch.from_numpy(speakers).long()
+        emotions = torch.from_numpy(emotions).long()
         texts = torch.from_numpy(texts).long()
         src_lens = torch.from_numpy(src_lens)
         mels = torch.from_numpy(mels).float()
@@ -24,15 +25,16 @@ def torch_from_numpy(data):
         pitches = torch.from_numpy(pitches).float()
         energies = torch.from_numpy(energies)
         durations = torch.from_numpy(durations).long()
-        return ids, raw_texts, speakers, texts, src_lens, max_src_len, mels, \
+        return ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len, mels, \
                mel_lens, max_mel_len, pitches, energies, durations
 
-    if len(data) == 6:
-        ids, raw_texts, speakers, texts, src_lens, max_src_len = data
-        speakers = torch.from_numpy(np.zeros(len(speakers))).long()
+    if len(data) == 7:
+        ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len = data
+        speakers = torch.from_numpy(speakers).long()
+        emotions = torch.from_numpy(emotions).long()
         texts = torch.from_numpy(texts).long()
         src_lens = torch.from_numpy(src_lens)
-        return ids, raw_texts, speakers, texts, src_lens, max_src_len
+        return ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len
 
 
 def to_device(data, device):
@@ -177,6 +179,7 @@ def synth_one_sample(targets, predictions, vocoder, preprocess_config, i):
 def synthesize_predicted_wav(i, predictions, vocoder):
     mel_len = predictions[9][i]
     mel_prediction = predictions[1][i, :mel_len].detach().transpose(0, 1)
+    # print(mel_prediction.shape)
     wav_prediction = vocoder(mel_prediction.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
     return wav_prediction
 

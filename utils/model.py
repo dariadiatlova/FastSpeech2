@@ -13,4 +13,5 @@ def get_dataloader(config: Dict, train: bool = True, limit: Optional[int] = None
     dataset = Dataset(filename=txt_name, preprocess_config=config, sort=sort, limit=limit)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=16,
                         collate_fn=dataset.collate_fn, pin_memory=True)
+
     return loader

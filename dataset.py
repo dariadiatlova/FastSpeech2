@@ -14,10 +14,11 @@ class Dataset(Dataset):
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
         self.batch_size = preprocess_config["batch_size"]
         self.synthesis_size = synthesis_size
-        self.basename, self.speaker, self.text, self.raw_text = self.process_meta(filename)
+        self.speaker_id, self.file_id, self.emotion_id, self.text, self.raw_text = self.process_meta(filename)
         with open(os.path.join(self.preprocessed_path, "speakers.json")) as f:
             self.speaker_map = json.load(f)
-        self.speaker_map = dict(zip(list(self.speaker_map.values()), list(self.speaker_map.keys())))
+        with open(os.path.join(self.preprocessed_path, "emotions.json")) as f:
+            self.emotion_map = json.load(f)
         with open(preprocess_config["path"]["phones_mapping_path"], "r") as f:
             self.phones_mapping = json.load(f)
         self.sort = sort
@@ -30,20 +31,23 @@ class Dataset(Dataset):
         return len(self.text)
 
     def __getitem__(self, idx):
-        basename = self.basename[idx]
-        speaker_id = self.speaker_map[int(self.speaker[idx])]
+        speaker_id = self.speaker_id[idx]
+        file_id = self.file_id[idx]
+        emotion_id = self.emotion_id[idx]
         raw_text = self.raw_text[idx]
         phone = np.array([self.phones_mapping[i] for i in self.text[idx][1:-1].split(" ")])
-        mel = np.load(os.path.join(self.preprocessed_path, "mel", "{}-mel-{}.npy".format("0", basename)))
-        pitch = np.load(os.path.join(self.preprocessed_path, "pitch", "{}-pitch-{}.npy".format("0", basename)))
-        energy = np.load(os.path.join(self.preprocessed_path, "energy", "{}-energy-{}.npy".format("0", basename)))
-        duration = np.load(os.path.join(self.preprocessed_path, "duration", "{}-duration-{}.npy".format("0", basename)))
+        basename = f"{self.speaker_id[idx]}_{self.file_id[idx]}_{self.emotion_id[idx]}"
+
+        mel = np.load(os.path.join(self.preprocessed_path, "mel", f"{speaker_id}-mel-{file_id}-{emotion_id}.npy"))
+        pitch = np.load(os.path.join(self.preprocessed_path, "pitch", f"{speaker_id}-pitch-{file_id}-{emotion_id}.npy"))
+        energy = np.load(os.path.join(self.preprocessed_path, "energy", f"{speaker_id}-energy-{file_id}-{emotion_id}.npy"))
+        duration = np.load(os.path.join(self.preprocessed_path, "duration", f"{speaker_id}-duration-{file_id}-{emotion_id}.npy"))
 
         assert duration.shape == phone.shape, f"Duration and phone shapes do not match. Phone shape {phone.shape}, " \
                                               f"duration: {duration.shape} for sample: {self.basename[idx]}."
 
-        sample = {"id": basename, "speaker": speaker_id, "text": phone, "raw_text": raw_text, "mel": mel,
-                  "pitch": pitch, "energy": energy, "duration": duration}
+        sample = {"id": basename, "speaker": speaker_id, "emotion": emotion_id, "text": phone, "raw_text": raw_text,
+                  "mel": mel, "pitch": pitch, "energy": energy, "duration": duration}
 
         return sample
 
@@ -51,19 +55,22 @@ class Dataset(Dataset):
         with open(os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8") as f:
             name = []
             speaker = []
+            emotion = []
             text = []
             raw_text = []
             for line in f.readlines():
-                n, s, t, r = line.strip("\n").split("|")
+                n, s, e, t, r = line.strip("\n").split("|")
                 name.append(n)
                 speaker.append(s)
+                emotion.append(e)
                 text.append(t)
                 raw_text.append(r)
-            return name, speaker, text, raw_text
+            return name, speaker, emotion, text, raw_text
 
     def reprocess(self, data, idxs):
         ids = [data[idx]["id"] for idx in idxs]
         speakers = [data[idx]["speaker"] for idx in idxs]
+        emotions = [data[idx]["emotion"] for idx in idxs]
         texts = [data[idx]["text"] for idx in idxs]
         raw_texts = [data[idx]["raw_text"] for idx in idxs]
         mels = [data[idx]["mel"] for idx in idxs]
@@ -74,15 +81,17 @@ class Dataset(Dataset):
         text_lens = np.array([text.shape[0] for text in texts])
         mel_lens = np.array([mel.shape[0] for mel in mels])
 
-        speakers = np.array(speakers)
+        speakers = np.array(speakers).astype(np.int32)
+        emotions = np.array(emotions).astype(np.int32)
+
         texts = pad_1D(texts)
         mels = pad_2D(mels)
         pitches = pad_1D(pitches)
         energies = pad_1D(energies)
         durations = pad_1D(durations)
 
-        return ids, raw_texts, speakers, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), pitches,\
-               energies, durations
+        return ids, raw_texts, speakers, emotions, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), \
+               pitches, energies, durations
 
     def collate_fn(self, data):
         data_size = len(data)
