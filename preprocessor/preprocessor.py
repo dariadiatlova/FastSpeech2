@@ -21,7 +21,6 @@ class Preprocessor:
         self.in_dir = config["path"]["raw_path"]
         self.text_grids_dir = config["path"]["text_grids_path"]
         self.out_dir = config["path"]["preprocessed_path"]
-        self.val_size = config["preprocessing"]["val_size"]
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
         self.n_mels = config["preprocessing"]["mel"]["n_mel_channels"]
@@ -33,6 +32,10 @@ class Preprocessor:
 
         self.pitch_normalization = config["preprocessing"]["pitch"]["normalization"]
         self.energy_normalization = config["preprocessing"]["energy"]["normalization"]
+
+        self.val_ids = open(config["path"]["val_ids_path"]).readlines()[0].split("|")[:-1]
+        assert len(self.val_ids) == config["preprocessing"]["val_size"], \
+            f"Expected to find {config['preprocessing']['val_size']} ids, found {len(self.val_ids)}."
 
         self.compute_mel_energy = Audio.compute_mel.ComputeMelEnergy(
             config["preprocessing"]["audio"]["sampling_rate"],
@@ -136,26 +139,14 @@ class Preprocessor:
         return out
 
     def train_val_split(self, metadata):
-        """Function takes metadata and implement train-val split in the way that all speakers and emotions
-        are in the validation set"""
-        n_speakers = np.unique([*self.speakers.values()]).shape[0]
-        n_emotions = np.unique([*self.emotions.values()]).shape[0]
-        assert self.val_size >= n_speakers * n_emotions, f"Increase the val_size if suppose to have in speakers and" \
-                                                         f"all emotions in the validation set"
         train_set = []
         val_set = []
-        emotions = np.unique([*self.emotions.values()])
-        # O(n * n_emotions) :c will be good to rewrite
-        for emotion in emotions:
-            temp_speakers_dict = dict(zip(np.unique([*self.speakers.values()]), list(np.zeros(n_speakers))))
-            for sample in metadata:
-                speaker_idx, filename_idx, emotion_idx, text, raw_text = sample.split("|")
-                if emotion_idx == emotion:
-                    if temp_speakers_dict[speaker_idx] == 0:
-                        val_set.append(sample)
-                        temp_speakers_dict[speaker_idx] = 1
-                    else:
-                        train_set.append(sample)
+        for sample in metadata:
+            speaker_idx, filename_idx, emotion_idx, text, raw_text = sample.split("|")
+            if f"{speaker_idx}_{filename_idx}_{emotion_idx}" in self.val_ids:
+                val_set.append(sample)
+            else:
+                train_set.append(sample)
         assert len(train_set) + len(val_set) == len(metadata)
         return train_set, val_set
 

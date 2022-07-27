@@ -3,10 +3,10 @@ path:
   text_grids_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs_textgrids"
   raw_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs"
   preprocessed_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/preprocessed"
-
+  val_ids_path: "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs_val_paths.txt"
 preprocessing:
+  val_size: 56
   include_empty_intervals: true
-  val_size: 65
   device: "cuda"
   audio:
     sampling_rate: 16000
