@@ -20,7 +20,7 @@ class FastSpeechLightning(LightningModule):
         self.model_config = config.model
         self.model = FastSpeech2(preprocess_config=config.preprocess, model_config=config.model)
         self.loss = FastSpeech2Loss(self.preprocess_config)
-        self.vocoder = torch.jit.load(config.vocoder_path, map_location=config.preprocess.device)
+        self.vocoder = torch.jit.load(config.vocoder_path, map_location="cpu")
         self.init_lr = np.power(config.model.transformer["encoder_hidden"], -0.5)
         self.n_warmup_steps = config.model.optimizer["warm_up_step"]
         self.anneal_steps = config.model.optimizer["anneal_steps"]
@@ -75,7 +75,7 @@ class FastSpeechLightning(LightningModule):
     def validation_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
         speakers, texts, text_lens, max_src_len = batch[2:6]
-        gt_mel, gt_mel_lens = batch[7:9]
+        gt_mel, gt_mel_lens = batch[6:8]
         basenames = batch[0]
         predictions = self.model(device=self.device,
                                  speakers=speakers.to(self.device),

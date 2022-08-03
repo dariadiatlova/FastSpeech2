@@ -10,7 +10,6 @@ from utils.tools import pad_1D, pad_2D
 
 class Dataset(Dataset):
     def __init__(self, filename, preprocess_config, synthesis_size: Optional[int] = None, sort=False, drop_last=False):
-        self.dataset_name = preprocess_config["dataset"]
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
         self.batch_size = preprocess_config["batch_size"]
         self.synthesis_size = synthesis_size

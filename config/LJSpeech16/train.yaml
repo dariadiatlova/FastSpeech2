@@ -26,7 +26,7 @@ preprocess:
   path:
     raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
     preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
-    phones_mapping_path: "/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json"
+    phones_mapping_path: "/root/storage/dasha/data/lj_mfa_data/lj_phones_mapping.json"
     ckpt_path: null
   audio:
     sampling_rate: 16000
