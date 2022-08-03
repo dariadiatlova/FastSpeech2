@@ -47,6 +47,9 @@ class Preprocessor:
             f_max=config["preprocessing"]["mel"]["mel_fmax"]
         )
 
+        with open(os.path.join(config["path"]["speaker_mapping"])) as f:
+            self.speaker_mapping = json.load(f)
+
     def build_from_path(self):
         os.makedirs((os.path.join(self.out_dir, "mel")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "pitch")), exist_ok=True)
@@ -61,26 +64,26 @@ class Preprocessor:
 
         # Compute pitch, energy, duration, and mel-spectrogram
         self.speakers = {}
-        self.emotions = {}
 
         for filename in tqdm(os.listdir(self.text_grids_dir)):
             if ".TextGrid" not in filename:
                 continue
 
-            short_filename = filename[:-9]
-            speaker_idx, filename_idx, emotion_id = short_filename.split("_")
+            short_filename = filename[:8]
+            speaker, filename_idx = short_filename.split("_")
+            speaker_idx = self.speaker_mapping[speaker]
 
-            self.speakers[f"{speaker_idx}_{filename_idx}_{emotion_id}"] = speaker_idx
-            self.emotions[f"{speaker_idx}_{filename_idx}_{emotion_id}"] = emotion_id
+            self.speakers[short_filename] = speaker_idx
 
             tg_path = os.path.join(self.text_grids_dir, "{}.TextGrid".format(short_filename))
             wav_path = os.path.join(self.in_dir, "{}.wav".format(short_filename))
             txt_path = os.path.join(self.in_dir, "{}.txt".format(short_filename))
             if os.path.exists(tg_path) and os.path.exists(wav_path) and os.path.exists(txt_path):
-                ret = self.process_utterance(speaker_idx, filename_idx, emotion_id, self.include_empty_intervals)
+                ret = self.process_utterance(short_filename, speaker_idx, filename_idx, self.include_empty_intervals)
                 if ret is None:
                     continue
                 else:
+
                     info, pitch, energy, n = ret
                     out.append(info)
 
@@ -92,6 +95,7 @@ class Preprocessor:
                     n_frames += n
 
         print("Computing statistic quantities ...")
+
         # Perform normalization if necessary
         if self.pitch_normalization:
             pitch_mean = pitch_scaler.mean_[0]
@@ -113,9 +117,6 @@ class Preprocessor:
         # Save files
         with open(os.path.join(self.out_dir, "speakers.json"), "w") as f:
             f.write(json.dumps(self.speakers))
-
-        with open(os.path.join(self.out_dir, "emotions.json"), "w") as f:
-            f.write(json.dumps(self.emotions))
 
         with open(os.path.join(self.out_dir, "stats.json"), "w") as f:
             stats = {
@@ -142,18 +143,18 @@ class Preprocessor:
         train_set = []
         val_set = []
         for sample in metadata:
-            speaker_idx, filename_idx, emotion_idx, text, raw_text = sample.split("|")
-            if f"{speaker_idx}_{filename_idx}_{emotion_idx}" in self.val_ids:
+            short_name, speaker_idx, filename_idx, text, raw_text = sample.split("|")
+            if short_name in self.val_ids:
                 val_set.append(sample)
             else:
                 train_set.append(sample)
         assert len(train_set) + len(val_set) == len(metadata)
         return train_set, val_set
 
-    def process_utterance(self, speaker_idx, filename_idx, emotion_idx, include_empty_intervals):
-        wav_path = os.path.join(self.in_dir, f"{speaker_idx}_{filename_idx}_{emotion_idx}.wav")
-        text_path = os.path.join(self.in_dir, f"{speaker_idx}_{filename_idx}_{emotion_idx}.txt")
-        tg_path = os.path.join(self.text_grids_dir, f"{speaker_idx}_{filename_idx}_{emotion_idx}.TextGrid")
+    def process_utterance(self, short_name, speaker_idx, filename_idx, include_empty_intervals):
+        wav_path = os.path.join(self.in_dir, f"{short_name}.wav")
+        text_path = os.path.join(self.in_dir, f"{short_name}.txt")
+        tg_path = os.path.join(self.text_grids_dir, f"{short_name}.TextGrid")
 
         # Get alignments
         textgrid = tgt.io.read_textgrid(tg_path, include_empty_intervals=include_empty_intervals)
@@ -226,9 +227,6 @@ class Preprocessor:
             # Phoneme-level average
             pos = 0
             for i, d in enumerate(duration):
-                assert pos + d < len(pitch) or d >= 1, f"Warning pos + d: {pos + d}, " \
-                                                       f"when length of pitch: {len(pitch)}," \
-                                                       f"and when d: {d}"
                 if d > 0:
                     pitch[i] = np.mean(pitch[pos: pos + d])
                 else:
@@ -248,25 +246,25 @@ class Preprocessor:
             energy = energy[:len(duration)]
 
         # Save files
-        assert not np.isnan(duration).any(), f"{speaker_idx}_{filename_idx}_{emotion_idx} sample duration contains nan"
-        dur_filename = f"{speaker_idx}-duration-{filename_idx}-{emotion_idx}.npy"
+        assert not np.isnan(duration).any(), f"{speaker_idx}_{filename_idx} sample duration contains nan"
+        dur_filename = f"{speaker_idx}-duration-{filename_idx}.npy"
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
-        assert not np.isnan(pitch).any(), f"{speaker_idx}_{filename_idx}_{emotion_idx} sample pitch contains nan"
-        pitch_filename = f"{speaker_idx}-pitch-{filename_idx}-{emotion_idx}.npy"
+        assert not np.isnan(pitch).any(), f"{speaker_idx}_{filename_idx} sample pitch contains nan"
+        pitch_filename = f"{speaker_idx}-pitch-{filename_idx}.npy"
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
-        assert not np.isnan(energy).any(), f"{speaker_idx}_{filename_idx}_{emotion_idx} sample energy contains nan"
-        energy_filename = f"{speaker_idx}-energy-{filename_idx}-{emotion_idx}.npy"
+        assert not np.isnan(energy).any(), f"{speaker_idx}_{filename_idx} sample energy contains nan"
+        energy_filename = f"{speaker_idx}-energy-{filename_idx}.npy"
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
         assert not np.isnan(mel_spectrogram).any(), \
-            f"{speaker_idx}_{filename_idx}_{emotion_idx} sample mel_spectrogram contains nan"
-        mel_filename = f"{speaker_idx}-mel-{filename_idx}-{emotion_idx}.npy"
+            f"{speaker_idx}_{filename_idx} sample mel_spectrogram contains nan"
+        mel_filename = f"{speaker_idx}-mel-{filename_idx}.npy"
         np.save(os.path.join(self.out_dir, "mel", mel_filename), mel_spectrogram.T)
 
         return (
-            "|".join([speaker_idx, filename_idx, emotion_idx, text, raw_text]),
+            "|".join([short_name, speaker_idx, filename_idx, text, raw_text]),
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1]

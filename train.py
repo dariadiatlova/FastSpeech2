@@ -8,7 +8,7 @@ from model.lightning_model import FastSpeechLightning
 from utils.model import get_dataloader
 
 
-@hydra.main(version_base=None, config_path="config/EmoEnglish", config_name="train")
+@hydra.main(version_base=None, config_path="config/VCTK", config_name="train")
 def train(cfg) -> None:
     seed_everything(cfg.seed)
     wandb_logger = WandbLogger(save_dir=cfg.wandb.save_dir, project=cfg.wandb.project, log_model=False,
