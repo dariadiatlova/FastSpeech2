@@ -1,37 +1,35 @@
 seed: 8000
-n_gpus: 4
-checkpoint_path: null #"/root/dasha/lightning/FastSpeech2/epoch=282-step=51914.ckpt"
-vocoder_path: "/root/andrey_b/DeepVKTTS/train/outputs/2022-05-20/13-39-44/hifiGan/LJ_generator.pt"
-filepath: "/root/dasha/test.wav"
+n_gpus: 1
+checkpoint_path: null
+vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/lj16/hifi_lj_593_epoch.pt"
 wandb:
-  gt_audio_directory_path: "/root/dasha/wavs"
+  gt_audio_directory_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
-  project: "FastSpeechLightning"
+  project: "FastSpeechLJ16"
   offline: false
   log_every_n_steps: 1
   val_step: 10
-  save_step: 100000
-  total_step: 70000
+  save_step: 50000
+  total_step: 100000
   save_last: true
 
 preprocess:
   device: "cuda"
   dataset: "LJSpeech"
-  batch_size: 16
+  batch_size: 32
   sort: true
   drop_last: true
   include_empty_intervals: true
-  val_size: 512
+  val_size: 32
   path:
-    raw_path: "/root/dasha/mfa/aligned_corpus"
-    preprocessed_path: "/root/dasha/updated_preprocessed_data"
-    phones_mapping_path: "/root/dasha/mfa/phones_mapping.json"
-    log_path: "/root/dasha/FastSpeech2/output"
+    raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
+    preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
+    phones_mapping_path: "/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json"
     ckpt_path: null
   audio:
-    sampling_rate: 22050
+    sampling_rate: 16000
     max_wav_value: 32768.0
   stft:
     filter_length: 1024

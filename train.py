@@ -8,7 +8,7 @@ from model.lightning_model import FastSpeechLightning
 from utils.model import get_dataloader
 
 
-@hydra.main(version_base=None, config_path="config", config_name="train_ljspeech")
+@hydra.main(version_base=None, config_path="config/LJSpeech16", config_name="train")
 def train(cfg) -> None:
     seed_everything(cfg.seed)
     wandb_logger = WandbLogger(save_dir=cfg.wandb.save_dir, project=cfg.wandb.project, log_model=False,
@@ -33,7 +33,8 @@ def train(cfg) -> None:
                       strategy="ddp")
 
     train_loader = get_dataloader(config=cfg.preprocess, train=True)
-    synthesis_loader = get_dataloader(config=cfg.preprocess, train=False, limit=16)
+    synthesis_loader = get_dataloader(config=cfg.preprocess, train=False)
+    assert len(synthesis_loader) == 2, f"Val loader size: {len(synthesis_loader)}, only 2 batches will be logged."
     model = FastSpeechLightning(cfg)
     if cfg.checkpoint_path is not None:
         model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path, config=cfg)

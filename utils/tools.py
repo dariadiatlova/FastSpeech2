@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import matplotlib
-from scipy.io import wavfile
+
 from matplotlib import pyplot as plt
 
 
@@ -181,56 +181,17 @@ def synthesize_predicted_wav(i, predictions, vocoder):
     return wav_prediction
 
 
+def synthesize_from_gt_mel(mel, vocoder):
+    mel = mel.detach().transpose(0, 1)
+    wav_reconstructed = vocoder(mel.unsqueeze(0).detach().cpu())[0].squeeze(0).detach().cpu().numpy()
+    return wav_reconstructed
+
+
 def reconstruct_wav(target, mel_len, vocoder):
     mel_target = target[6][:mel_len].detach().transpose(0, 1)
     wav_reconstruction = vocoder(mel_target.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
     wav_prediction = vocoder(wav_reconstruction.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
     return wav_prediction
-
-
-def synth_samples(targets, predictions, vocoder, model_config, preprocess_config, path):
-    basenames = targets[0]
-    for i in range(len(predictions[0])):
-        basename = basenames[i]
-        src_len = predictions[8][i].item()
-        mel_len = predictions[9][i].item()
-        mel_prediction = predictions[1][i, :mel_len].detach().transpose(0, 1)
-        duration = predictions[5][i, :src_len].detach().cpu().numpy()
-        if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-            pitch = predictions[2][i, :src_len].detach().cpu().numpy()
-            pitch = expand(pitch, duration)
-        else:
-            pitch = predictions[2][i, :mel_len].detach().cpu().numpy()
-        if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-            energy = predictions[3][i, :src_len].detach().cpu().numpy()
-            energy = expand(energy, duration)
-        else:
-            energy = predictions[3][i, :mel_len].detach().cpu().numpy()
-
-        with open(
-            os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
-        ) as f:
-            stats = json.load(f)
-            stats = stats["pitch"] + stats["energy"][:2]
-
-        fig = plot_mel(
-            [
-                (mel_prediction.cpu().numpy(), pitch, energy),
-            ],
-            stats,
-            ["Synthetized Spectrogram"],
-        )
-        plt.savefig(os.path.join(path, "{}.png".format(basename)))
-        plt.close()
-
-    from .model import vocoder_infer
-
-    mel_predictions = predictions[1].transpose(1, 2)
-    lengths = predictions[9] * preprocess_config["preprocessing"]["stft"]["hop_length"]
-    wav_predictions = vocoder_infer(mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths)
-    sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
-    for wav, basename in zip(wav_predictions, basenames):
-        wavfile.write(os.path.join(path, "{}.wav".format(basename)), sampling_rate, wav)
 
 
 def plot_mel(data, stats, titles):

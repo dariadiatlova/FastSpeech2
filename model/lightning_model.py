@@ -7,7 +7,7 @@ import wandb
 from pytorch_lightning import LightningModule
 
 from model import FastSpeech2, FastSpeech2Loss
-from utils.tools import synthesize_predicted_wav, torch_from_numpy
+from utils.tools import synthesize_predicted_wav, torch_from_numpy, synthesize_from_gt_mel
 
 
 class FastSpeechLightning(LightningModule):
@@ -75,6 +75,7 @@ class FastSpeechLightning(LightningModule):
     def validation_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
         speakers, texts, text_lens, max_src_len = batch[2:6]
+        gt_mel, gt_mel_lens = batch[7:9]
         basenames = batch[0]
         predictions = self.model(device=self.device,
                                  speakers=speakers.to(self.device),
@@ -82,20 +83,28 @@ class FastSpeechLightning(LightningModule):
                                  src_lens=text_lens.to(self.device),
                                  max_src_len=max_src_len)
 
-        for i, tag in zip(range(len(basenames)), basenames):
+        for i, tag in enumerate(basenames):
             synthesized_wav = synthesize_predicted_wav(i, predictions, self.vocoder)
-            ground_truth_audio_path = f"{self.ground_truth_audio_path}/{tag}.wav"
-            ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
-            ground_truth_wav = ground_truth_wav.squeeze(0)
 
             self.logger.experiment.log(
                 {f"Validation_audio/predicted_{i}": wandb.Audio(
-                    synthesized_wav, caption=f"Generated_{tag}", sample_rate=self.sampling_rate)}
+                    synthesized_wav, caption=f"generated_{i}", sample_rate=self.sampling_rate)}
             )
 
             if self.global_step == 0:
+                vocoder_synthesized_from_gt = synthesize_from_gt_mel(gt_mel[i, :gt_mel_lens[i]], self.vocoder)
+
                 # log original audios only ones
+                ground_truth_audio_path = f"{self.ground_truth_audio_path}/{tag}.wav"
+                ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
+                ground_truth_wav = ground_truth_wav.squeeze(0)
+
                 self.logger.experiment.log(
                         {f"Validation_audio/original{i}": wandb.Audio(
-                            ground_truth_wav, caption=f"Original_{tag}", sample_rate=self.sampling_rate)}
+                            ground_truth_wav, caption=f"original_{i}", sample_rate=self.sampling_rate)}
                     )
+
+                self.logger.experiment.log(
+                    {f"Reconstructed_audio/reconstructed_{i}": wandb.Audio(
+                        vocoder_synthesized_from_gt, caption=f"reconstructed_{i}", sample_rate=self.sampling_rate)}
+                )

@@ -9,30 +9,22 @@ from utils.tools import pad_1D, pad_2D
 
 
 class Dataset(Dataset):
-    def __init__(self, filename, preprocess_config, synthesis_size: Optional[int] = None, sort=False, drop_last=False,
-                 limit: int = None):
+    def __init__(self, filename, preprocess_config, synthesis_size: Optional[int] = None, sort=False, drop_last=False):
         self.dataset_name = preprocess_config["dataset"]
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
         self.batch_size = preprocess_config["batch_size"]
         self.synthesis_size = synthesis_size
         self.basename, self.speaker, self.text, self.raw_text = self.process_meta(filename)
-        with open(os.path.join(self.preprocessed_path, "speakers.json")) as f:
-            self.speaker_map = json.load(f)
-        self.speaker_map = dict(zip(list(self.speaker_map.values()), list(self.speaker_map.keys())))
         with open(preprocess_config["path"]["phones_mapping_path"], "r") as f:
             self.phones_mapping = json.load(f)
         self.sort = sort
         self.drop_last = drop_last
-        self.limit = limit
 
     def __len__(self):
-        if self.limit is not None:
-            return self.limit
         return len(self.text)
 
     def __getitem__(self, idx):
         basename = self.basename[idx]
-        speaker_id = self.speaker_map[int(self.speaker[idx])]
         raw_text = self.raw_text[idx]
         phone = np.array([self.phones_mapping[i] for i in self.text[idx][1:-1].split(" ")])
         mel = np.load(os.path.join(self.preprocessed_path, "mel", "{}-mel-{}.npy".format("0", basename)))
@@ -43,7 +35,7 @@ class Dataset(Dataset):
         assert duration.shape == phone.shape, f"Duration and phone shapes do not match. Phone shape {phone.shape}, " \
                                               f"duration: {duration.shape} for sample: {self.basename[idx]}."
 
-        sample = {"id": basename, "speaker": speaker_id, "text": phone, "raw_text": raw_text, "mel": mel,
+        sample = {"id": basename, "speaker": "0", "text": phone, "raw_text": raw_text, "mel": mel,
                   "pitch": pitch, "energy": energy, "duration": duration}
 
         return sample
