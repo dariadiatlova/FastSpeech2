@@ -17,19 +17,15 @@ def main(dir_path, txt_path):
     filenames = os.listdir(dir_path)
     emotions = ["0", "1", "2", "3", "4"]
     validation_set = set()
-    short_set = ["11", "12", "13"]
-    speaker_ids = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13"]
-    speaker_dictionary = dict(zip(speaker_ids, np.zeros(13)))
+    speaker_ids = ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
+    speaker_dictionary = dict(zip(speaker_ids, np.zeros(10)))
     for file in filenames:
         if np.all(list(speaker_dictionary.values())):
             break
         short_name = file[:-9]
         speaker_id, file_id, emotion_id = short_name.split("_")
         if speaker_dictionary[speaker_id] == 0:
-            if speaker_id in short_set:
-                res, paths = set_check(dir_path, speaker_id, file_id, emotions[:2])
-            else:
-                res, paths = set_check(dir_path, speaker_id, file_id, emotions)
+            res, paths = set_check(dir_path, speaker_id, file_id, emotions)
             if res:
                 speaker_dictionary[speaker_id] = 1
                 validation_set.add(paths)
@@ -43,6 +39,6 @@ def main(dir_path, txt_path):
 
 
 if __name__ == "__main__":
-    dir_path = "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs_textgrids"
-    txt_path = "/root/storage/dasha/emo-data/etts/vk_etts_data/copied_wavs_val_paths.txt"
+    dir_path = "/root/storage/dasha/data/emo-data/clean/TextGrids"
+    txt_path = "/root/storage/dasha/data/emo-data/clean/copied_wavs_val_paths.txt"
     main(dir_path, txt_path)

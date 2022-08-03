@@ -176,11 +176,16 @@ def synth_one_sample(targets, predictions, vocoder, preprocess_config, i):
     return fig, wav_reconstruction, wav_prediction, basename
 
 
+def synthesize_from_gt_mel(mel, vocoder):
+    mel = mel.detach().transpose(0, 1)
+    wav_reconstructed = vocoder(mel.unsqueeze(0).detach().cpu())[0].squeeze(0).detach().cpu().numpy()
+    return wav_reconstructed
+
+
 def synthesize_predicted_wav(i, predictions, vocoder):
     mel_len = predictions[9][i]
     mel_prediction = predictions[1][i, :mel_len].detach().transpose(0, 1)
-    # print(mel_prediction.shape)
-    wav_prediction = vocoder(mel_prediction.unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
+    wav_prediction = vocoder(mel_prediction.unsqueeze(0).detach().cpu())[0].squeeze(0).detach().cpu().numpy()
     return wav_prediction
 
 

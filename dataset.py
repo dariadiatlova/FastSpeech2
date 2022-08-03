@@ -9,11 +9,9 @@ from utils.tools import pad_1D, pad_2D
 
 
 class Dataset(Dataset):
-    def __init__(self, filename, preprocess_config, synthesis_size: Optional[int] = None, sort=False, drop_last=False,
-                 limit: int = None):
+    def __init__(self, filename, preprocess_config, batch_size, sort=False, drop_last=False):
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
-        self.batch_size = preprocess_config["batch_size"]
-        self.synthesis_size = synthesis_size
+        self.batch_size = batch_size
         self.speaker_id, self.file_id, self.emotion_id, self.text, self.raw_text = self.process_meta(filename)
         with open(os.path.join(self.preprocessed_path, "speakers.json")) as f:
             self.speaker_map = json.load(f)
@@ -23,11 +21,8 @@ class Dataset(Dataset):
             self.phones_mapping = json.load(f)
         self.sort = sort
         self.drop_last = drop_last
-        self.limit = limit
 
     def __len__(self):
-        if self.limit is not None:
-            return self.limit
         return len(self.text)
 
     def __getitem__(self, idx):
@@ -107,7 +102,6 @@ class Dataset(Dataset):
         idx_arr = idx_arr.reshape((-1, self.batch_size)).tolist()
         if not self.drop_last and len(tail) > 0:
             idx_arr += [tail.tolist()]
-
         output = [self.reprocess(data, idx) for idx in idx_arr]
 
         return output

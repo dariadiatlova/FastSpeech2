@@ -63,11 +63,11 @@ class Preprocessor:
         self.speakers = {}
         self.emotions = {}
 
-        for filename in tqdm(os.listdir(self.in_dir)):
-            if ".wav" not in filename:
+        for filename in tqdm(os.listdir(self.text_grids_dir)):
+            if ".TextGrid" not in filename:
                 continue
 
-            short_filename = filename[:-4]
+            short_filename = filename[:-9]
             speaker_idx, filename_idx, emotion_id = short_filename.split("_")
 
             self.speakers[f"{speaker_idx}_{filename_idx}_{emotion_id}"] = speaker_idx

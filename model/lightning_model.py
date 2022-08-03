@@ -7,7 +7,7 @@ import wandb
 from pytorch_lightning import LightningModule
 
 from model import FastSpeech2, FastSpeech2Loss
-from utils.tools import synthesize_predicted_wav, torch_from_numpy
+from utils.tools import synthesize_predicted_wav, torch_from_numpy, synthesize_from_gt_mel
 
 
 class FastSpeechLightning(LightningModule):
@@ -20,7 +20,7 @@ class FastSpeechLightning(LightningModule):
         self.model_config = config.model
         self.model = FastSpeech2(preprocess_config=config.preprocess, model_config=config.model)
         self.loss = FastSpeech2Loss(self.preprocess_config)
-        self.vocoder = torch.jit.load(config.vocoder_path, map_location=config.preprocess.device)
+        self.vocoder = torch.jit.load(config.vocoder_path, map_location="cpu")
         self.init_lr = np.power(config.model.transformer["encoder_hidden"], -0.5)
         self.n_warmup_steps = config.model.optimizer["warm_up_step"]
         self.anneal_steps = config.model.optimizer["anneal_steps"]
@@ -77,27 +77,41 @@ class FastSpeechLightning(LightningModule):
         batch = torch_from_numpy(batch[0])
         basenames = batch[0]
         speakers, emotions, texts, text_lens, max_src_len = batch[2:7]
+        gt_mel, gt_mel_lens = batch[7:9]
         predictions = self.model(device=self.device,
                                  speakers=speakers.to(self.device),
                                  emotions=emotions.to(self.device),
                                  texts=texts.to(self.device),
                                  src_lens=text_lens.to(self.device),
                                  max_src_len=max_src_len)
-
         for i, tag in zip(range(len(basenames)), basenames):
+
+            emotion = emotions[i]
+            speaker = speakers[i]
             synthesized_wav = synthesize_predicted_wav(i, predictions, self.vocoder)
-            ground_truth_audio_path = f"{self.ground_truth_audio_path}/{tag}.wav"
-            ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
-            ground_truth_wav = ground_truth_wav.squeeze(0)
 
             self.logger.experiment.log(
-                {f"Validation_audio/predicted_{i}": wandb.Audio(
-                    synthesized_wav, caption=f"Generated_{tag}", sample_rate=self.sampling_rate)}
+                {f"Speaker_{speaker}/generated_emotion{emotion}": wandb.Audio(
+                    synthesized_wav, caption=f"Generated_speaker{speaker}_emotion{emotion}",
+                    sample_rate=self.sampling_rate)}
             )
 
             if self.global_step == 0:
                 # log original audios only ones
+                vocoder_synthesized_from_gt = synthesize_from_gt_mel(gt_mel[i, :gt_mel_lens[i]], self.vocoder)
+
+                ground_truth_audio_path = f"{self.ground_truth_audio_path}/{tag}.wav"
+                ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
+                ground_truth_wav = ground_truth_wav.squeeze(0)
+
                 self.logger.experiment.log(
-                        {f"Validation_audio/original{i}": wandb.Audio(
-                            ground_truth_wav, caption=f"Original_{tag}", sample_rate=self.sampling_rate)}
+                        {f"Speaker_{speaker}/original_emotion{emotion}": wandb.Audio(
+                            ground_truth_wav, caption=f"Original_speaker{speaker}_emotion{emotion}",
+                            sample_rate=self.sampling_rate)}
                     )
+
+                self.logger.experiment.log(
+                    {f"Reconstructed_speaker{speaker}_emotion{emotion}": wandb.Audio(
+                        vocoder_synthesized_from_gt, caption=f"Reconstructed_speaker{speaker}_emotion{emotion}",
+                        sample_rate=self.sampling_rate)}
+                )

@@ -9,6 +9,7 @@ class FastSpeech2Loss(nn.Module):
         super(FastSpeech2Loss, self).__init__()
         self.pitch_feature_level = preprocess_config["pitch"]["feature"]
         self.energy_feature_level = preprocess_config["energy"]["feature"]
+        self.pitch_loss_eps = preprocess_config["pitch"]["eps"]
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
 
@@ -61,6 +62,6 @@ class FastSpeech2Loss(nn.Module):
         energy_loss = self.mse_loss(energy_predictions, energy_targets)
         duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
 
-        total_loss = mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss
+        total_loss = mel_loss + postnet_mel_loss + duration_loss + (self.pitch_loss_eps * pitch_loss) + energy_loss
 
         return total_loss, mel_loss, postnet_mel_loss, pitch_loss, energy_loss, duration_loss
