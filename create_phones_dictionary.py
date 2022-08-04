@@ -26,9 +26,9 @@ def main(textgrids: List[str], target_path: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--text_grids_directory", type=str,
-                        default="/root/storage/dasha/data/emo-data/clean/TextGrids")
+                        default="/root/storage/dasha/data/vctk/TextGrids")
     parser.add_argument("--target_path", type=str,
-                        default="/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json")
+                        default="/root/storage/dasha/data/vctk/vctk_english_phones_mapping.json")
     args = parser.parse_args()
     all_grids = glob.glob(f"{args.text_grids_directory}/*.TextGrid")
     main(all_grids, args.target_path)

@@ -14,8 +14,8 @@ class FastSpeech2Loss(nn.Module):
         self.mae_loss = nn.L1Loss()
 
     def forward(self, device, inputs, predictions):
-        mel_targets = inputs[7]
-        pitch_targets, energy_targets, duration_targets = inputs[10:]
+        mel_targets = inputs[6]
+        pitch_targets, energy_targets, duration_targets = inputs[9:]
         mel_predictions = predictions[0]
         postnet_mel_predictions, pitch_predictions, energy_predictions, log_duration_predictions = predictions[1:5]
         src_masks, mel_masks = predictions[6:8]
@@ -36,14 +36,14 @@ class FastSpeech2Loss(nn.Module):
         mel_targets = mel_targets.to(device)
 
         if self.pitch_feature_level == "phoneme_level":
-            pitch_predictions = pitch_predictions.masked_select(src_masks).to(device)
+            pitch_predictions = pitch_predictions.masked_select(src_masks.to(device)).to(device)
             pitch_targets = pitch_targets.masked_select(src_masks.to(device))
         elif self.pitch_feature_level == "frame_level":
             pitch_predictions = pitch_predictions.masked_select(mel_masks).to(device)
             pitch_targets = pitch_targets.masked_select(mel_masks.to(device))
 
         if self.energy_feature_level == "phoneme_level":
-            energy_predictions = energy_predictions.masked_select(src_masks).to(device)
+            energy_predictions = energy_predictions.masked_select(src_masks.to(device)).to(device)
             energy_targets = energy_targets.masked_select(src_masks.to(device))
         if self.energy_feature_level == "frame_level":
             energy_predictions = energy_predictions.masked_select(mel_masks)
