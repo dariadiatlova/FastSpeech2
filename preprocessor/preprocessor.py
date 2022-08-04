@@ -58,18 +58,20 @@ class Preprocessor:
         n_frames = 0
         pitch_scaler = StandardScaler()
         energy_scaler = StandardScaler()
+        self.emotions = {}
 
         # Compute pitch, energy, duration, and mel-spectrogram
         for filename in tqdm(os.listdir(self.text_grids_dir)):
             if ".TextGrid" not in filename:
                 continue
             short_filename = filename[:-9]
+            speaker_idx, filename_idx, emotion_id = short_filename.split("_")
+            self.emotions[short_filename] = emotion_id
             tg_path = os.path.join(self.text_grids_dir, "{}.TextGrid".format(short_filename))
             wav_path = os.path.join(self.in_dir, "{}.wav".format(short_filename))
             txt_path = os.path.join(self.in_dir, "{}.txt".format(short_filename))
             if os.path.exists(tg_path) and os.path.exists(wav_path) and os.path.exists(txt_path):
                 ret = self.process_utterance(short_filename, self.include_empty_intervals)
-
                 if ret is None:
                     continue
                 else:
@@ -103,6 +105,8 @@ class Preprocessor:
         energy_min, energy_max = self.normalize(os.path.join(self.out_dir, "energy"), energy_mean, energy_std)
 
         # Save files
+        with open(os.path.join(self.out_dir, "emotions.json"), "w") as f:
+            f.write(json.dumps(self.emotions))
 
         with open(os.path.join(self.out_dir, "stats.json"), "w") as f:
             stats = {
@@ -129,8 +133,8 @@ class Preprocessor:
         train_set = []
         val_set = []
         for sample in metadata:
-            filename_idx, speaker_idx, text, raw_text = sample.split("|")
-            if filename_idx in self.val_ids:
+            speaker_idx, filename_idx, emotion_id, text, raw_text = sample.split("|")
+            if f"{speaker_idx}_{filename_idx}_{emotion_id}" in self.val_ids:
                 val_set.append(sample)
             else:
                 train_set.append(sample)
@@ -138,6 +142,7 @@ class Preprocessor:
         return train_set, val_set
 
     def process_utterance(self, short_filename, include_empty_intervals):
+        speaker_id, file_id, emotion_id = short_filename.split("_")
         wav_path = os.path.join(self.in_dir, f"{short_filename}.wav")
         text_path = os.path.join(self.in_dir, f"{short_filename}.txt")
         tg_path = os.path.join(self.text_grids_dir, f"{short_filename}.TextGrid")
@@ -232,24 +237,25 @@ class Preprocessor:
             energy = energy[:len(duration)]
 
         # Save files
+
         assert not np.isnan(duration).any(), f"{short_filename} sample duration contains nan"
-        dur_filename = f"0-duration-{short_filename}.npy"
+        dur_filename = f"{speaker_id}-duration-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
         assert not np.isnan(pitch).any(), f"{short_filename} sample pitch contains nan"
-        pitch_filename = f"0-pitch-{short_filename}.npy"
+        pitch_filename = f"{speaker_id}-pitch-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
         assert not np.isnan(energy).any(), f"{short_filename} sample energy contains nan"
-        energy_filename = f"0-energy-{short_filename}.npy"
+        energy_filename = f"{speaker_id}-energy-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
         assert not np.isnan(mel_spectrogram).any(), f"{short_filename} sample mel_spectrogram contains nan"
-        mel_filename = f"0-mel-{short_filename}.npy"
+        mel_filename = f"{speaker_id}-mel-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "mel", mel_filename), mel_spectrogram.T)
 
         return (
-            "|".join([short_filename, "0", text, raw_text]),
+            "|".join([str(speaker_id), str(file_id), str(emotion_id), text, raw_text]),
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1]
