@@ -13,10 +13,11 @@ matplotlib.use("Agg")
 
 
 def torch_from_numpy(data):
-    if len(data) == 12:
-        ids, raw_texts, speakers, texts, src_lens, max_src_len = data[:6]
-        mels, mel_lens, max_mel_len, pitches, energies, durations = data[6:]
+    if len(data) == 13:
+        ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len = data[:7]
+        mels, mel_lens, max_mel_len, pitches, energies, durations = data[7:]
         speakers = torch.from_numpy(np.zeros(len(speakers))).long()
+        emotions = torch.from_numpy(np.array(emotions).astype(int)).long()
         texts = torch.from_numpy(texts).long()
         src_lens = torch.from_numpy(src_lens)
         mels = torch.from_numpy(mels).float()
@@ -24,7 +25,7 @@ def torch_from_numpy(data):
         pitches = torch.from_numpy(pitches).float()
         energies = torch.from_numpy(energies)
         durations = torch.from_numpy(durations).long()
-        return ids, raw_texts, speakers, texts, src_lens, max_src_len, mels, \
+        return ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len, mels, \
                mel_lens, max_mel_len, pitches, energies, durations
 
     if len(data) == 6:

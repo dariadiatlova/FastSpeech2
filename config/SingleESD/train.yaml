@@ -3,30 +3,30 @@ n_gpus: 1
 checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/lj16k/step_150000.ckpt"
 vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/lj16/hifi_lj_593_epoch.pt"
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
+  gt_audio_directory_path: "/root/storage/dasha/data/emo-single-speaker/wavs"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
-  project: "TestLJFromCkpt"
+  project: "SingleESDFromLjCkpt"
   offline: false
   log_every_n_steps: 1
   val_step: 10
-  save_step: 50000
-  total_step: 200000
+  save_step: 25000
+  total_step: 100000
   save_last: true
 
 preprocess:
   device: "cuda"
   dataset: "LJSpeech"
-  batch_size: 32
+  batch_size: 136
   sort: true
   drop_last: true
   include_empty_intervals: true
-  val_size: 32
+  val_size: 136
   path:
-    raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
-    preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
-    phones_mapping_path: "/root/storage/dasha/data/lj_mfa_data/lj_phones_mapping.json"
+    raw_path: "/root/storage/dasha/data/emo-single-speaker/wavs"
+    preprocessed_path: "/root/storage/dasha/data/emo-single-speaker/preprocessed"
+    phones_mapping_path: "/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json"
     ckpt_path: null
   audio:
     sampling_rate: 16000
@@ -47,6 +47,7 @@ preprocess:
     normalization: True
 
 model:
+  emotion: True
   multi_speaker: False
   device: "cuda"
   max_seq_len: 2000

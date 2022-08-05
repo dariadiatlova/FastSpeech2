@@ -67,28 +67,30 @@ class FastSpeechLightning(LightningModule):
 
     def training_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
-        speakers, texts, text_lens, max_src_len, mels, mel_lens, max_mel_len, p_targets, e_targets, d_targets = batch[2:]
-        batch_output = self.model(self.device, speakers, texts, text_lens, max_src_len, mels,
+        speakers, emotions, texts, text_lens, max_src_len, mels, mel_lens, max_mel_len, p_targets, e_targets, d_targets = batch[2:]
+        batch_output = self.model(self.device, speakers, emotions, texts, text_lens, max_src_len, mels,
                                   mel_lens, max_mel_len, p_targets, e_targets, d_targets)
         return self._shared_step(batch, batch_output)
 
     def validation_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
-        speakers, texts, text_lens, max_src_len = batch[2:6]
-        gt_mel, gt_mel_lens = batch[6:8]
+        speakers, emotions, texts, text_lens, max_src_len = batch[2:7]
+        gt_mel, gt_mel_lens = batch[7:9]
         basenames = batch[0]
         predictions = self.model(device=self.device,
                                  speakers=speakers.to(self.device),
+                                 emotions=emotions.to(self.device),
                                  texts=texts.to(self.device),
                                  src_lens=text_lens.to(self.device),
                                  max_src_len=max_src_len)
 
         for i, tag in enumerate(basenames):
+            s, f, e = tag.split("_")
             synthesized_wav = synthesize_predicted_wav(i, predictions, self.vocoder)
 
             self.logger.experiment.log(
-                {f"Validation_audio/predicted_{i}": wandb.Audio(
-                    synthesized_wav, caption=f"generated_{i}", sample_rate=self.sampling_rate)}
+                {f"Audio_{f}/predicted_{f}_emo_{emotions[i]}": wandb.Audio(
+                    synthesized_wav, caption=f"predicted_{f}_emo_{emotions[i]}", sample_rate=self.sampling_rate)}
             )
 
             if self.global_step == 0:
@@ -100,11 +102,11 @@ class FastSpeechLightning(LightningModule):
                 ground_truth_wav = ground_truth_wav.squeeze(0)
 
                 self.logger.experiment.log(
-                        {f"Validation_audio/original{i}": wandb.Audio(
-                            ground_truth_wav, caption=f"original_{i}", sample_rate=self.sampling_rate)}
+                        {f"Audio_{f}/original_{f}_emo_{emotions[i]}": wandb.Audio(
+                            ground_truth_wav, caption=f"original_{f}_emo_{emotions[i]}", sample_rate=self.sampling_rate)}
                     )
 
                 self.logger.experiment.log(
-                    {f"Reconstructed_audio/reconstructed_{i}": wandb.Audio(
+                    {f"reconstructed_audio/reconstructed_{tag}": wandb.Audio(
                         vocoder_synthesized_from_gt, caption=f"reconstructed_{i}", sample_rate=self.sampling_rate)}
                 )

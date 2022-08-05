@@ -13,8 +13,8 @@ class FastSpeech2Loss(nn.Module):
         self.mae_loss = nn.L1Loss()
 
     def forward(self, device, inputs, predictions):
-        mel_targets = inputs[6]
-        pitch_targets, energy_targets, duration_targets = inputs[9:]
+        mel_targets = inputs[7]
+        pitch_targets, energy_targets, duration_targets = inputs[10:]
         mel_predictions = predictions[0]
         postnet_mel_predictions, pitch_predictions, energy_predictions, log_duration_predictions = predictions[1:5]
         src_masks, mel_masks = predictions[6:8]
