@@ -7,6 +7,7 @@ import librosa
 import numpy as np
 import pyworld as pw
 from scipy.interpolate import interp1d
+from scipy import signal
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
@@ -24,6 +25,7 @@ class Preprocessor:
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
         self.n_mels = config["preprocessing"]["mel"]["n_mel_channels"]
+        self.scale = config["preprocessing"]["cwt"]["scale"]
 
         assert config["preprocessing"]["pitch"]["feature"] in ["phoneme_level", "frame_level"]
         assert config["preprocessing"]["energy"]["feature"] in ["phoneme_level", "frame_level"]
@@ -49,14 +51,14 @@ class Preprocessor:
 
     def build_from_path(self):
         os.makedirs((os.path.join(self.out_dir, "mel")), exist_ok=True)
-        os.makedirs((os.path.join(self.out_dir, "pitch")), exist_ok=True)
+        os.makedirs((os.path.join(self.out_dir, "pitch_spectrogram")), exist_ok=True)
+        os.makedirs((os.path.join(self.out_dir, "pitch_mean_std")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "energy")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "duration")), exist_ok=True)
 
         print("Processing Data ...")
         out = list()
         n_frames = 0
-        pitch_scaler = StandardScaler()
         energy_scaler = StandardScaler()
 
         # Compute pitch, energy, duration, and mel-spectrogram
@@ -73,11 +75,9 @@ class Preprocessor:
                 if ret is None:
                     continue
                 else:
-                    info, pitch, energy, n = ret
+                    info, energy, n = ret
                     out.append(info)
 
-                    if len(pitch) > 0:
-                        pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
                     if len(energy) > 0:
                         energy_scaler.partial_fit(energy.reshape((-1, 1)))
 
@@ -85,13 +85,6 @@ class Preprocessor:
 
         print("Computing statistic quantities ...")
         # Perform normalization if necessary
-        if self.pitch_normalization:
-            pitch_mean = pitch_scaler.mean_[0]
-            pitch_std = pitch_scaler.scale_[0]
-        else:
-            # A numerical trick to avoid normalization...
-            pitch_mean = 0
-            pitch_std = 1
         if self.energy_normalization:
             energy_mean = energy_scaler.mean_[0]
             energy_std = energy_scaler.scale_[0]
@@ -99,14 +92,12 @@ class Preprocessor:
             energy_mean = 0
             energy_std = 1
 
-        pitch_min, pitch_max = self.normalize(os.path.join(self.out_dir, "pitch"), pitch_mean, pitch_std)
         energy_min, energy_max = self.normalize(os.path.join(self.out_dir, "energy"), energy_mean, energy_std)
 
         # Save files
 
         with open(os.path.join(self.out_dir, "stats.json"), "w") as f:
             stats = {
-                "pitch": [float(pitch_min), float(pitch_max), float(pitch_mean), float(pitch_std)],
                 "energy": [float(energy_min), float(energy_max), float(energy_mean), float(energy_std)],
             }
             f.write(json.dumps(stats))
@@ -199,26 +190,20 @@ class Preprocessor:
                                                         f"{mel_spectrogram.shape[0]}."
         energy = energy[:sum(duration)]
 
-        if self.pitch_phoneme_averaging:
-            # perform linear interpolation
-            nonzero_ids = np.where(pitch != 0)[0]
-            interp_fn = interp1d(
-                nonzero_ids,
-                pitch[nonzero_ids],
-                fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
-                bounds_error=False,
-            )
-            pitch = interp_fn(np.arange(0, len(pitch)))
-
-            # Phoneme-level average
-            pos = 0
-            for i, d in enumerate(duration):
-                if d > 0:
-                    pitch[i] = np.mean(pitch[pos: pos + d])
-                else:
-                    pitch[i] = 0
-                pos += d
-            pitch = pitch[:len(duration)]
+        # perform linear interpolation
+        nonzero_ids = np.where(pitch != 0)[0]
+        interp_fn = interp1d(
+            nonzero_ids,
+            pitch[nonzero_ids],
+            fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
+            bounds_error=False,
+        )
+        pitch = interp_fn(np.arange(0, len(pitch)))
+        pitch_log = np.log(pitch)
+        original_mean = np.mean(pitch_log)
+        original_std = np.std(pitch_log)
+        normalized_log_pitch = (pitch_log - original_mean) / original_std
+        pitch_spectrogram = signal.cwt(normalized_log_pitch, signal.ricker, np.arange(1, self.scale + 1))
 
         if self.energy_phoneme_averaging:
             # Phoneme-level average
@@ -236,9 +221,13 @@ class Preprocessor:
         dur_filename = f"0-duration-{short_filename}.npy"
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
-        assert not np.isnan(pitch).any(), f"{short_filename} sample pitch contains nan"
-        pitch_filename = f"0-pitch-{short_filename}.npy"
-        np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
+        assert not np.isnan(pitch_spectrogram).any(), f"{short_filename} sample pitch spectrogram contains nan"
+        pitch_filename = f"0-pitch-spectrogram-{short_filename}.npy"
+        np.save(os.path.join(self.out_dir, "pitch_spectrogram", pitch_filename), pitch_spectrogram)
+
+        assert original_mean is not None and original_std is not None, f"{short_filename} sample pitch mean or std is nan"
+        pitch_mean_std_filename = f"0-pitch-mean-std-{short_filename}.npy"
+        np.save(os.path.join(self.out_dir, "pitch_mean_std", pitch_mean_std_filename), np.array([original_mean, original_std]))
 
         assert not np.isnan(energy).any(), f"{short_filename} sample energy contains nan"
         energy_filename = f"0-energy-{short_filename}.npy"
@@ -250,7 +239,6 @@ class Preprocessor:
 
         return (
             "|".join([short_filename, "0", text, raw_text]),
-            self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1]
         )

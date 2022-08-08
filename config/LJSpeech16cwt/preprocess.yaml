@@ -1,0 +1,33 @@
+dataset: "LJSpeech"
+device: "cuda"
+path:
+  text_grids_path: "/root/storage/dasha/data/lj_mfa_data/TextGrids"
+  raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
+  preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16cwt"
+  val_ids_path: "/root/storage/dasha/data/lj_mfa_data/lj16_val_paths.txt"
+
+preprocessing:
+  include_empty_intervals: true
+  val_size: 64
+  device: "cuda"
+  text:
+    language: "en"
+  audio:
+    sampling_rate: 16000
+    max_wav_value: 32768.0
+  cwt:
+    scale: 10
+  stft:
+    filter_length: 512
+    hop_length: 128
+    win_length: 512
+  mel:
+    n_mel_channels: 80
+    mel_fmin: 0
+    mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
+  pitch:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True
+  energy:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True

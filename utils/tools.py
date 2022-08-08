@@ -12,6 +12,18 @@ from matplotlib import pyplot as plt
 matplotlib.use("Agg")
 
 
+def denormalize(data, mean, std):
+    return data * std + mean
+
+
+def get_pitch_from_pitch_spec(pitch_spec):
+    result_pitch = np.zeros(pitch_spec.shape[0]).astype(np.float32)
+    for t in range(pitch_spec.shape[0]):
+        for i in range(pitch_spec.shape[1]):
+            result_pitch[t] += pitch_spec[t, i] * (i + 2.5) ** (-5 / 2)
+    return result_pitch
+
+
 def torch_from_numpy(data):
     if len(data) == 12:
         ids, raw_texts, speakers, texts, src_lens, max_src_len = data[:6]
