@@ -271,22 +271,33 @@ def pad_1D(inputs, PAD=0):
     return padded
 
 
-def pad_2D(inputs, maxlen=None):
+def pad_2D(inputs, maxlen=None, pitch_spec=False):
     def pad(x, max_len):
         PAD = 0
-        if np.shape(x)[0] > max_len:
-            raise ValueError("not max_len")
+        if pitch_spec:
+            if np.shape(x)[1] > max_len:
+                raise ValueError("not max_len")
+            s = np.shape(x)[0]
+            x_padded = np.pad(
+                x, (max_len - np.shape(x)[1], 0), mode="constant", constant_values=PAD
+            )
+            return x_padded[:s, :]
+        else:
+            if np.shape(x)[0] > max_len:
+                raise ValueError("not max_len")
 
-        s = np.shape(x)[1]
-        x_padded = np.pad(
-            x, (0, max_len - np.shape(x)[0]), mode="constant", constant_values=PAD
-        )
-        return x_padded[:, :s]
+            s = np.shape(x)[1]
+            x_padded = np.pad(
+                x, (0, max_len - np.shape(x)[0]), mode="constant", constant_values=PAD
+            )
+            return x_padded[:, :s]
 
     if maxlen:
         output = np.stack([pad(x, maxlen) for x in inputs])
     else:
         max_len = max(np.shape(x)[0] for x in inputs)
+        if pitch_spec:
+            max_len = max(np.shape(x)[1] for x in inputs)
         output = np.stack([pad(x, max_len) for x in inputs])
 
     return output

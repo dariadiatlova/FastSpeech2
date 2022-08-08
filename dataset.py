@@ -27,17 +27,41 @@ class Dataset(Dataset):
         raw_text = self.raw_text[idx]
         phone = np.array([self.phones_mapping[i] for i in self.text[idx][1:-1].split(" ")])
         mel = np.load(os.path.join(self.preprocessed_path, "mel", "{}-mel-{}.npy".format("0", basename)))
-        pitch = np.load(os.path.join(self.preprocessed_path, "pitch", "{}-pitch-{}.npy".format("0", basename)))
+        pitch_spectrogram = np.load(os.path.join(self.preprocessed_path, "pitch_spectrogram", "{}-pitch-spectrogram-{}.npy".format("0", basename)))
+        pitch_mean_std = np.load(os.path.join(self.preprocessed_path, "pitch_mean_std", "{}-pitch-mean-std-{}.npy".format("0", basename)))
         energy = np.load(os.path.join(self.preprocessed_path, "energy", "{}-energy-{}.npy".format("0", basename)))
         duration = np.load(os.path.join(self.preprocessed_path, "duration", "{}-duration-{}.npy".format("0", basename)))
+
+        pitch = self.extract_pitch_from_ctw(pitch_spectrogram, pitch_mean_std[0], pitch_mean_std[1])
+        pitch = self.phoneme_averaging(duration, pitch)
 
         assert duration.shape == phone.shape, f"Duration and phone shapes do not match. Phone shape {phone.shape}, " \
                                               f"duration: {duration.shape} for sample: {self.basename[idx]}."
 
         sample = {"id": basename, "speaker": "0", "text": phone, "raw_text": raw_text, "mel": mel,
-                  "pitch": pitch, "energy": energy, "duration": duration}
+                  "pitch_spectrogram": pitch_spectrogram, "pitch_mean_std": pitch_mean_std, "pitch": pitch,
+                  "energy": energy, "duration": duration}
 
         return sample
+
+    @staticmethod
+    def phoneme_averaging(duration, pitch):
+        pos = 0
+        for i, d in enumerate(duration):
+            if d > 0:
+                pitch[i] = np.mean(pitch[pos: pos + d])
+            else:
+                pitch[i] = 0
+            pos += d
+        return pitch[:len(duration)]
+
+    @staticmethod
+    def extract_pitch_from_ctw(spectrogram, mean, std):
+        result_pitch = np.zeros(spectrogram.shape[1]).astype(np.float32)
+        for t in range(spectrogram.shape[1]):
+            for i in range(spectrogram.shape[0]):
+                result_pitch[t] += spectrogram[i, t] * (i + 2.5) ** (-5 / 2)
+        return result_pitch * std + mean
 
     def process_meta(self, filename):
         with open(os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8") as f:
@@ -60,21 +84,27 @@ class Dataset(Dataset):
         raw_texts = [data[idx]["raw_text"] for idx in idxs]
         mels = [data[idx]["mel"] for idx in idxs]
         pitches = [data[idx]["pitch"] for idx in idxs]
+        pitch_specs = [data[idx]["pitch_spectrogram"] for idx in idxs]
+        pitch_mean_stds = [data[idx]["pitch_mean_std"] for idx in idxs]
         energies = [data[idx]["energy"] for idx in idxs]
         durations = [data[idx]["duration"] for idx in idxs]
 
         text_lens = np.array([text.shape[0] for text in texts])
         mel_lens = np.array([mel.shape[0] for mel in mels])
+        pitch_spec_lens = np.array([pitch_spec.shape[1] for pitch_spec in pitch_specs])
 
         speakers = np.array(speakers)
+        pitch_mean_stds = np.array(pitch_mean_stds)
+
         texts = pad_1D(texts)
         mels = pad_2D(mels)
+        pitch_specs = pad_2D(pitch_specs, pitch_spec=True)
         pitches = pad_1D(pitches)
         energies = pad_1D(energies)
         durations = pad_1D(durations)
 
-        return ids, raw_texts, speakers, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), pitches,\
-               energies, durations
+        return ids, raw_texts, speakers, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), \
+               pitch_specs, pitch_mean_stds, pitches, pitch_spec_lens, max(pitch_spec_lens), energies, durations
 
     def collate_fn(self, data):
         data_size = len(data)

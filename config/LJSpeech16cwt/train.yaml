@@ -25,7 +25,7 @@ preprocess:
   val_size: 32
   path:
     raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
-    preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
+    preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16cwt"
     phones_mapping_path: "/root/storage/dasha/data/lj_mfa_data/lj_phones_mapping.json"
     ckpt_path: null
   audio:
@@ -42,6 +42,7 @@ preprocess:
   pitch:
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True
+    scales: 10
   energy:
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True

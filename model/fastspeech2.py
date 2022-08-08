@@ -19,6 +19,8 @@ class FastSpeech2(nn.Module):
         self.decoder = Decoder(model_config)
         self.mel_linear = nn.Linear(model_config["transformer"]["decoder_hidden"],
                                     preprocess_config["mel"]["n_mel_channels"])
+        self.pitch_spec = nn.Linear(model_config["transformer"]["decoder_hidden"],
+                                    preprocess_config["pitch"]["scales"])
         self.postnet = PostNet()
         self.speaker_emb = None
         if model_config["multi_speaker"]:

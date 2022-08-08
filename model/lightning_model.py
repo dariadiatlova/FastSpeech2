@@ -67,7 +67,8 @@ class FastSpeechLightning(LightningModule):
 
     def training_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
-        speakers, texts, text_lens, max_src_len, mels, mel_lens, max_mel_len, p_targets, e_targets, d_targets = batch[2:]
+        speakers, texts, text_lens, max_src_len, mels, mel_lens, max_mel_len, pitch_specs, pitch_mean_stds, p_targets, \
+        pitch_lens, max_pitch_len, e_targets, d_targets = batch[2:]
         batch_output = self.model(self.device, speakers, texts, text_lens, max_src_len, mels,
                                   mel_lens, max_mel_len, p_targets, e_targets, d_targets)
         return self._shared_step(batch, batch_output)
