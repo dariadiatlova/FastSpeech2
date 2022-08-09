@@ -1,7 +1,7 @@
 seed: 8000
 n_gpus: 1
 checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/lj16k/step_150000.ckpt"
-vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/lj16/hifi_lj_593_epoch.pt"
+vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/esd16/hifi_esd_191_epoch.pt"
 wandb:
   gt_audio_directory_path: "/root/storage/dasha/data/emo-single-speaker/wavs"
   save_dir: null
@@ -11,8 +11,8 @@ wandb:
   offline: false
   log_every_n_steps: 1
   val_step: 10
-  save_step: 25000
-  total_step: 100000
+  save_step: 5000
+  total_step: 10000
   save_last: true
 
 preprocess:
