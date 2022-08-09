@@ -1,10 +1,10 @@
 seed: 8000
-n_gpus: 1
+n_gpus: 2
 checkpoint_path: null
 vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk16/hifi_vctk_191_epoch.pt"
 filepath: null
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/vctk/wavs16vad"
+  gt_audio_directory_path: "/root/storage/dasha/data/vctk/wavs16vad2"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
@@ -18,15 +18,15 @@ wandb:
 
 preprocess:
   device: "cuda"
-  batch_size: 56
+  batch_size: 120
   sort: true
   drop_last: true
   include_empty_intervals: true
   val_size: 108
   path:
     speaker_mapping: "/root/storage/dasha/data/vctk/speaker_ids_mapping.json"
-    raw_path: "/root/storage/dasha/data/vctk/wavs16vad"
-    preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16"
+    raw_path: "/root/storage/dasha/data/vctk/wavs16vad2"
+    preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16vad2"
     phones_mapping_path: "/root/storage/dasha/data/vctk/vctk_english_phones_mapping.json"
     ckpt_path: null
   audio:
