@@ -24,6 +24,7 @@ class Preprocessor:
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
         self.n_mels = config["preprocessing"]["mel"]["n_mel_channels"]
+        self.val_size = config["preprocessing"]["val_size"]
 
         assert config["preprocessing"]["pitch"]["feature"] in ["phoneme_level", "frame_level"]
         assert config["preprocessing"]["energy"]["feature"] in ["phoneme_level", "frame_level"]
@@ -59,16 +60,17 @@ class Preprocessor:
         print("Processing Data ...")
         out = list()
         n_frames = 0
-        pitch_scaler = StandardScaler()
-        energy_scaler = StandardScaler()
+        pitch_scalers = [StandardScaler() for _ in range(self.val_size)]
+        energy_scalers = [StandardScaler() for _ in range(self.val_size)]
+
+        overall_pitch_scaler = StandardScaler()
+        overall_energy_scaler = StandardScaler()
 
         # Compute pitch, energy, duration, and mel-spectrogram
         self.speakers = {}
-
         for filename in tqdm(os.listdir(self.text_grids_dir)):
             if ".TextGrid" not in filename:
                 continue
-
             short_filename = filename[:8]
             speaker, filename_idx = short_filename.split("_")
             speaker_idx = self.speaker_mapping[speaker]
@@ -83,47 +85,74 @@ class Preprocessor:
                 if ret is None:
                     continue
                 else:
-
                     info, pitch, energy, n = ret
                     out.append(info)
 
                     if len(pitch) > 0:
-                        pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
+                        pitch_scalers[int(speaker_idx)].partial_fit(pitch.reshape((-1, 1)))
+                        overall_pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
                     if len(energy) > 0:
-                        energy_scaler.partial_fit(energy.reshape((-1, 1)))
+                        energy_scalers[int(speaker_idx)].partial_fit(energy.reshape((-1, 1)))
+                        overall_energy_scaler.partial_fit(energy.reshape((-1, 1)))
 
                     n_frames += n
 
         print("Computing statistic quantities ...")
 
         # Perform normalization if necessary
+        pitch_means = np.zeros(self.val_size).astype(np.float64)
+        pitch_stds = np.ones(self.val_size).astype(np.float64)
         if self.pitch_normalization:
-            pitch_mean = pitch_scaler.mean_[0]
-            pitch_std = pitch_scaler.scale_[0]
-        else:
-            # A numerical trick to avoid normalization...
-            pitch_mean = 0
-            pitch_std = 1
-        if self.energy_normalization:
-            energy_mean = energy_scaler.mean_[0]
-            energy_std = energy_scaler.scale_[0]
-        else:
-            energy_mean = 0
-            energy_std = 1
+            for i in range(self.val_size):
+                try:
+                    pitch_means[i] = pitch_scalers[i].mean_[0]
+                    pitch_stds[i] = pitch_scalers[i].scale_[0]
+                except AttributeError:
+                    pass
 
-        pitch_min, pitch_max = self.normalize(os.path.join(self.out_dir, "pitch"), pitch_mean, pitch_std)
-        energy_min, energy_max = self.normalize(os.path.join(self.out_dir, "energy"), energy_mean, energy_std)
+        energy_means = np.zeros(self.val_size).astype(np.float64)
+        energy_stds = np.ones(self.val_size).astype(np.float64)
+        if self.energy_normalization:
+            for i in range(self.val_size):
+                try:
+                    energy_means[i] = energy_scalers[i].mean_[0]
+                    energy_stds[i] = energy_scalers[i].scale_[0]
+                except AttributeError:
+                    pass
+
+        pitches_min, pitches_max = self.normalize(os.path.join(self.out_dir, "pitch"), pitch_means, pitch_stds)
+        energies_min, energies_max = self.normalize(os.path.join(self.out_dir, "energy"), energy_means, energy_stds)
+
+        overall_pitch_mean = float(overall_pitch_scaler.mean_[0])
+        overall_pitch_std = float(overall_pitch_scaler.scale_[0])
+        overall_energy_mean = float(overall_energy_scaler.mean_[0])
+        overall_energy_std = float(overall_energy_scaler.scale_[0])
+
+        overall_pitch_min = float(min(pitches_min))
+        overall_pitch_max = float(max(pitches_max))
+        overall_energy_min = float(min(energies_min))
+        overall_energy_max = float(max(energies_max))
 
         # Save files
         with open(os.path.join(self.out_dir, "speakers.json"), "w") as f:
             f.write(json.dumps(self.speakers))
 
-        with open(os.path.join(self.out_dir, "stats.json"), "w") as f:
-            stats = {
-                "pitch": [float(pitch_min), float(pitch_max), float(pitch_mean), float(pitch_std)],
-                "energy": [float(energy_min), float(energy_max), float(energy_mean), float(energy_std)],
-            }
-            f.write(json.dumps(stats))
+        pitch_dict = {}
+        energy_dict = {}
+        for i in range(len(pitches_min)):
+            pitch_dict[i] = [float(pitches_min[i]), float(pitches_max[i]), float(pitch_means[i]), float(pitch_stds[i])]
+            energy_dict[i] = [float(energies_min[i]), float(energies_max[i]), float(energy_means[i]), float(energy_stds[i])]
+
+        with open(os.path.join(self.out_dir, "pitch.json"), "w") as f:
+            f.write(json.dumps(pitch_dict))
+
+        with open(os.path.join(self.out_dir, "energy.json"), "w") as f:
+            f.write(json.dumps(energy_dict))
+
+        with open(os.path.join(self.out_dir, "overall_stat.json"), "w") as f:
+            d = {"pitch": [overall_pitch_min, overall_pitch_max, overall_pitch_mean, overall_pitch_std],
+                 "energy": [overall_energy_min, overall_energy_max, overall_energy_mean, overall_energy_std]}
+            f.write(json.dumps(d))
 
         print("Total time: {} hours".format(n_frames * self.hop_length / self.sampling_rate / 3600))
         random.shuffle(out)
@@ -319,15 +348,17 @@ class Preprocessor:
 
         return values[normal_indices]
 
-    def normalize(self, in_dir, mean, std):
-        max_value = np.finfo(np.float64).min
-        min_value = np.finfo(np.float64).max
+    def normalize(self, in_dir, means, stds):
+        max_values = [np.finfo(np.float64).min for _ in range(len(means))]
+        min_values = [np.finfo(np.float64).max for _ in range(len(means))]
         for filename in os.listdir(in_dir):
+            speaker, _, _ = filename.split("-")
+            speaker = int(speaker)
             filename = os.path.join(in_dir, filename)
-            values = (np.load(filename) - mean) / std
+            values = (np.load(filename) - means[speaker]) / stds[speaker]
             np.save(filename, values)
 
-            max_value = max(max_value, max(values))
-            min_value = min(min_value, min(values))
+            max_values[speaker] = max(max_values[speaker], max(values))
+            min_values[speaker] = min(min_values[speaker], min(values))
 
-        return min_value, max_value
+        return min_values, max_values
