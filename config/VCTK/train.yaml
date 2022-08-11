@@ -1,10 +1,10 @@
 seed: 8000
-n_gpus: 2
+n_gpus: 1
 checkpoint_path: null
 vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk16/hifi_vctk_191_epoch.pt"
 filepath: null
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/vctk/wavs16vad2"
+  gt_audio_directory_path: "/root/storage/dasha/data/vctk/preprocessed16vad2"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
@@ -18,7 +18,7 @@ wandb:
 
 preprocess:
   device: "cuda"
-  batch_size: 120
+  batch_size: 64
   sort: true
   drop_last: true
   include_empty_intervals: true
