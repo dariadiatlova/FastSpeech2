@@ -3,7 +3,7 @@ device: "cuda"
 path:
   text_grids_path: "/root/storage/dasha/data/lj_mfa_data/TextGrids"
   raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
-  preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
+  preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16yaapt"
   val_ids_path: "/root/storage/dasha/data/lj_mfa_data/lj16_val_paths.txt"
 
 preprocessing:

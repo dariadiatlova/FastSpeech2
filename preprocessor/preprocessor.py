@@ -6,9 +6,13 @@ import tgt
 import librosa
 import numpy as np
 import pyworld as pw
+from scipy.io import wavfile
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
+
+import amfm_decompy.pYAAPT as pYAAPT
+import amfm_decompy.basic_tools as basic
 
 import audio as Audio
 from audio.compute_mel import PAD_MEL_VALUE
@@ -48,6 +52,7 @@ class Preprocessor:
         )
 
     def build_from_path(self):
+        os.makedirs((os.path.join(self.out_dir, "trimmed_wav")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "mel")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "pitch")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "energy")), exist_ok=True)
@@ -153,25 +158,27 @@ class Preprocessor:
         # Read and trim wav files
         wav, _ = librosa.load(wav_path, sr=self.sampling_rate)
         wav = wav[int(self.sampling_rate * start):int(self.sampling_rate * end)].astype(np.float32)
+        trimmed_wav_filename = os.path.join(self.out_dir, "trimmed_wav", f"{short_filename}.wav")
+        wavfile.write(trimmed_wav_filename, self.sampling_rate, wav)
 
         # Read raw text
         with open(text_path, "r") as f:
             raw_text = f.readline().strip("\n")
 
         # Compute fundamental frequency
-        pitch, t = pw.dio(
-            wav.astype(np.float64),
-            self.sampling_rate,
-            frame_period=self.hop_length / self.sampling_rate * 1000,
-        )
-        pitch = pw.stonemask(wav.astype(np.float64), pitch, t, self.sampling_rate)
+        _signal = basic.SignalObj(trimmed_wav_filename, sr=self.sampling_rate)
+        pitch = pYAAPT.yaapt(_signal, frame_space=7.9, fft_length=4096).samp_values
 
         # Compute mel-scale spectrogram and energy
         mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
         mel_count = mel_spectrogram.shape[1]
 
-        if pitch.shape[0] - mel_count == 1:
-            pitch = pitch[:-1]
+        assert pitch.shape[0] >= mel_count, f"For sample {trimmed_wav_filename} pitch shape: {pitch.shape[0]}, but " \
+                                            f"mel shape: {mel_spectrogram.shape}."
+
+        print(f"{short_filename}: {pitch.shape[0] - mel_count} \n")
+
+        pitch = pitch[:mel_count]
 
         assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
                                             f"count {pitch.shape[0]}"
