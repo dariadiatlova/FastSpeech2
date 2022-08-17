@@ -167,7 +167,7 @@ class Preprocessor:
 
         # Compute fundamental frequency
         _signal = basic.SignalObj(trimmed_wav_filename, sr=self.sampling_rate)
-        pitch = pYAAPT.yaapt(_signal, frame_space=7.9, fft_length=4096).samp_values
+        pitch = pYAAPT.yaapt(_signal, frame_space=7.5, fft_length=4096).samp_values
 
         # Compute mel-scale spectrogram and energy
         mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
