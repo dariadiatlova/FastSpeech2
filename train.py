@@ -32,15 +32,15 @@ def train(cfg) -> None:
                       callbacks=[callbacks, progress_bar],
                       strategy="ddp")
 
-    # train_loader = get_dataloader(config=cfg.preprocess, train=True)
+    train_loader = get_dataloader(config=cfg.preprocess, train=True)
     synthesis_loader = get_dataloader(config=cfg.preprocess, train=False)
-    import pdb
-    pdb.set_trace()
-    # assert len(synthesis_loader) == 2, f"Val loader size: {len(synthesis_loader)}, only 2 batches will be logged."
-    # model = FastSpeechLightning(cfg)
-    # if cfg.checkpoint_path is not None:
-    #     model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path, config=cfg)
-    # trainer.fit(model, train_loader, synthesis_loader)
+    # import pdb
+    # pdb.set_trace()
+    assert len(synthesis_loader) == 2, f"Val loader size: {len(synthesis_loader)}, only 2 batches will be logged."
+    model = FastSpeechLightning(cfg)
+    if cfg.checkpoint_path is not None:
+        model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path, config=cfg)
+    trainer.fit(model, train_loader, synthesis_loader)
 
 
 if __name__ == "__main__":

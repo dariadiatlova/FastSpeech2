@@ -14,9 +14,15 @@ class VarianceAdaptor(nn.Module):
 
     def __init__(self, preprocess_config, model_config):
         super(VarianceAdaptor, self).__init__()
+        with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")) as f:
+            stats = json.load(f)
+            energy_min, energy_max = stats["energy"][:2]
+            pitch_min, pitch_max = stats["pitch"][:2]
+            pitch_mean, pitch_std = stats["pitch"][4:]
+
         self.duration_predictor = VariancePredictor(model_config)
         self.length_regulator = LengthRegulator(preprocess_config["device"])
-        self.pitch_predictor = VariancePredictor(model_config)
+        self.pitch_predictor = PitchPredictor(model_config, pitch_mean, pitch_std)
         self.energy_predictor = VariancePredictor(model_config)
 
         self.device = preprocess_config["device"]
@@ -32,10 +38,6 @@ class VarianceAdaptor(nn.Module):
 
         assert pitch_quantization in ["linear", "log"]
         assert energy_quantization in ["linear", "log"]
-
-        with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")) as f:
-            stats = json.load(f)
-            energy_min, energy_max = stats["energy"][:2]
 
         if pitch_quantization == "log":
             self.pitch_bins = nn.Parameter(
@@ -54,14 +56,14 @@ class VarianceAdaptor(nn.Module):
         self.energy_embedding = nn.Embedding(n_bins, model_config["transformer"]["encoder_hidden"])
 
     def get_pitch_embedding(self, device, x, target, mask, control):
-        prediction = self.pitch_predictor(x, mask)
+        pitch_prediction, cwt_prediction = self.pitch_predictor(x, mask)
         self.pitch_embedding.to(device)
         if target is not None:
             embedding = self.pitch_embedding(torch.bucketize(target.to(device), self.pitch_bins.to(device)))
         else:
-            prediction = prediction * control
-            embedding = self.pitch_embedding(torch.bucketize(prediction.to(device), self.pitch_bins.to(device)))
-        return prediction, embedding
+            pitch_prediction = pitch_prediction * control
+            embedding = self.pitch_embedding(torch.bucketize(pitch_prediction.to(device), self.pitch_bins.to(device)))
+        return pitch_prediction, cwt_prediction, embedding
 
     def get_energy_embedding(self, device, x, target, mask, control):
         prediction = self.energy_predictor(x, mask)
@@ -77,7 +79,7 @@ class VarianceAdaptor(nn.Module):
 
         log_duration_prediction = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
-            pitch_prediction, pitch_embedding = self.get_pitch_embedding(device, x, pitch_target, src_mask, p_control)
+            pitch_prediction, cwt_prediction, pitch_embedding = self.get_pitch_embedding(device, x, pitch_target, src_mask, p_control)
             x = x + pitch_embedding
         if self.energy_feature_level == "phoneme_level":
             energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, src_mask, p_control)
@@ -98,7 +100,7 @@ class VarianceAdaptor(nn.Module):
             energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, mel_mask, p_control)
             x = x + energy_embedding
 
-        return x, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask
+        return x, cwt_prediction, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask
 
 
 class LengthRegulator(nn.Module):
@@ -177,6 +179,58 @@ class VariancePredictor(nn.Module):
             out = out.masked_fill(mask, 0.0)
 
         return out
+
+
+class PitchPredictor(nn.Module):
+    """Pitch Predictor using CWT"""
+
+    def __init__(self, model_config):
+        super(VariancePredictor, self, pitch_mean, pitch_std).__init__()
+
+        self.input_size = model_config["transformer"]["encoder_hidden"]
+        self.filter_size = model_config["variance_predictor"]["filter_size"]
+        self.kernel = model_config["variance_predictor"]["kernel_size"]
+        self.conv_output_size = model_config["variance_predictor"]["filter_size"]
+        self.dropout = model_config["variance_predictor"]["dropout"]
+        self.pitch_mean = pitch_mean
+        self.pitch_std = pitch_std
+
+        self.conv_layer = nn.Sequential(
+            OrderedDict(
+                [
+                    ("conv1d_1",
+                     Conv(self.input_size, self.filter_size, kernel_size=self.kernel, padding=(self.kernel - 1) // 2)),
+                    ("relu_1", nn.ReLU()),
+                    ("layer_norm_1", nn.LayerNorm(self.filter_size)),
+                    ("dropout_1", nn.Dropout(self.dropout)),
+                    ("conv1d_2", Conv(self.filter_size, self.filter_size, kernel_size=self.kernel, padding=1)),
+                    ("relu_2", nn.ReLU()),
+                    ("layer_norm_2", nn.LayerNorm(self.filter_size)),
+                    ("dropout_2", nn.Dropout(self.dropout)),
+                ]
+            )
+        )
+
+        self.linear_layer = nn.Linear(self.conv_output_size, 10)
+
+    def extract_pitch(self, out):
+        bs, pitch_size, scale_size = out.shape
+        res = torch.empty((bs, pitch_size), requires_grad=True, dtype=torch.FloatTensor)
+        for i in range(bs):
+            res[i, :] = denormalize(get_pitch_from_pitch_spec(out[i, :, :].squeeze(0).detach.cpu.numpy()),
+                                    self.pitch_mean, self.pitch_std)
+        return res
+
+    def forward(self, encoder_output, mask):
+        out = self.conv_layer(encoder_output)
+        out = self.linear_layer(out)
+
+        if mask is not None:
+            mask = msk.unsqueeze(2).expand(-1, -1, 10)
+            cwt = out.masked_fill(mask, 0.0)
+            pitch = extract_pitch(out)
+
+        return pitch, cwt
 
 
 class Conv(nn.Module):

@@ -48,13 +48,14 @@ class FastSpeechLightning(LightningModule):
         return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     def _shared_step(self, input, output):
-        total_loss, mel_loss, postnet_mel_loss, pitch_loss, energy_loss, duration_loss = self.loss(self.device, input, output)
+        total_loss, mel_loss, postnet_mel_loss, pitch_loss, cwt_loss, energy_loss, duration_loss, cwt_loss = self.loss(self.device, input, output)
         gen_log_dict = {f"train_loss/total_loss": total_loss,
                         f"train_loss/mel_loss": mel_loss,
                         f"train_loss/postnet_mel_loss": postnet_mel_loss,
                         f"train_loss/pitch_loss": pitch_loss,
                         f"train_loss/energy_loss": energy_loss,
                         f"train_loss/duration_loss": duration_loss,
+                        f"train_loss/cwt_loss": cwt_loss,
                         f"optimizer_rate/optimizer": self.optimizer.param_groups[0]['lr']}
         self.log_dict(gen_log_dict, on_step=True, on_epoch=False)
         return total_loss
@@ -67,10 +68,10 @@ class FastSpeechLightning(LightningModule):
 
     def training_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
-        speakers, texts, text_lens, max_src_len, mels, mel_lens, max_mel_len, pitch_specs, pitch_mean_stds, p_targets, \
-        pitch_lens, max_pitch_len, e_targets, d_targets = batch[2:]
+        speakers, texts, text_lens, max_src_len, mels, mel_lens, max_mel_len, cwt_target, p_targets, \
+        e_targets, d_targets = batch[2:]
         batch_output = self.model(self.device, speakers, texts, text_lens, max_src_len, mels,
-                                  mel_lens, max_mel_len, p_targets, e_targets, d_targets)
+                                  mel_lens, max_mel_len, cwt_target, p_targets, e_targets, d_targets)
         return self._shared_step(batch, batch_output)
 
     def validation_step(self, batch, batch_idx):

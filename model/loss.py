@@ -14,10 +14,10 @@ class FastSpeech2Loss(nn.Module):
 
     def forward(self, device, inputs, predictions):
         mel_targets = inputs[6]
-        pitch_targets, energy_targets, duration_targets = inputs[9:]
+        cwt_targets, pitch_targets, energy_targets, duration_targets = inputs[9:]
         mel_predictions = predictions[0]
-        postnet_mel_predictions, pitch_predictions, energy_predictions, log_duration_predictions = predictions[1:5]
-        src_masks, mel_masks = predictions[6:8]
+        postnet_mel_predictions, cwt_predictions, pitch_predictions, energy_predictions, log_duration_predictions = predictions[1:6]
+        src_masks, mel_masks = predictions[7:9]
         src_masks = ~src_masks
         mel_masks = ~mel_masks
         log_duration_targets = torch.log(duration_targets.float() + 1)
@@ -33,10 +33,16 @@ class FastSpeech2Loss(nn.Module):
         energy_targets = energy_targets.to(device)
         log_duration_targets = log_duration_targets.to(device)
         mel_targets = mel_targets.to(device)
+        cwt_targets = cwt_targets.to(device)
 
         if self.pitch_feature_level == "phoneme_level":
             pitch_predictions = pitch_predictions.masked_select(src_masks).to(device)
             pitch_targets = pitch_targets.masked_select(src_masks.to(device))
+
+            _src_masks = src_masks.unsqueeze(2).expand(-1, -1, 10)
+            cwt_predictions = cwt_predictions.masked_select(_src_masks).to(device)
+            cwt_targets = cwt_targets.masked_select(_src_masks.to(device))
+
         elif self.pitch_feature_level == "frame_level":
             pitch_predictions = pitch_predictions.masked_select(mel_masks).to(device)
             pitch_targets = pitch_targets.masked_select(mel_masks.to(device))
@@ -60,7 +66,8 @@ class FastSpeech2Loss(nn.Module):
         pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
         energy_loss = self.mse_loss(energy_predictions, energy_targets)
         duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
+        cwt_loss = self.mse_loss(cwt_predictions, cwt_targets)
 
-        total_loss = mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss
+        total_loss = mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss + cwt_loss
 
-        return total_loss, mel_loss, postnet_mel_loss, pitch_loss, energy_loss, duration_loss
+        return total_loss, mel_loss, postnet_mel_loss, pitch_loss, energy_loss, duration_loss, cwt_loss
