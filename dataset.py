@@ -28,7 +28,7 @@ class Dataset(Dataset):
         phone = np.array([self.phones_mapping[i] for i in self.text[idx][1:-1].split(" ")])
         mel = np.load(os.path.join(self.preprocessed_path, "mel", "{}-mel-{}.npy".format("0", basename)))
         cwt = np.load(os.path.join(self.preprocessed_path, "cwt", "{}-pitch-{}.npy".format("0", basename)))
-        pitch = np.load(os.path.join(self.preprocessed_path, "pitch", "{}-pitch-{}.npy".format("0", basename)))
+        pitch = np.load(os.path.join(self.preprocessed_path, "reconstructed_pitch", "{}-pitch-{}.npy".format("0", basename)))
         energy = np.load(os.path.join(self.preprocessed_path, "energy", "{}-energy-{}.npy".format("0", basename)))
         duration = np.load(os.path.join(self.preprocessed_path, "duration", "{}-duration-{}.npy".format("0", basename)))
 
@@ -61,7 +61,7 @@ class Dataset(Dataset):
         raw_texts = [data[idx]["raw_text"] for idx in idxs]
         mels = [data[idx]["mel"] for idx in idxs]
         pitches = [data[idx]["pitch"] for idx in idxs]
-        cwt = [data[idx]["cwt"] for idx in idxs]
+        cwt = [np.concatenate([data[idx]["cwt"].real, data[idx]["cwt"].imag], axis=0) for idx in idxs]
         energies = [data[idx]["energy"] for idx in idxs]
         durations = [data[idx]["duration"] for idx in idxs]
 

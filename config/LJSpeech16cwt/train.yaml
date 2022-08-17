@@ -7,7 +7,7 @@ wandb:
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
-  project: "FastSpeechLJ16"
+  project: "CWTFastSpeechLJ16"
   offline: false
   log_every_n_steps: 1
   val_step: 10
@@ -25,7 +25,7 @@ preprocess:
   val_size: 32
   path:
     raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
-    preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16CWTnorm"
+    preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16cwt"
     phones_mapping_path: "/root/storage/dasha/data/lj_mfa_data/lj_phones_mapping.json"
     ckpt_path: null
   audio:
@@ -68,6 +68,7 @@ model:
     filter_size: 256
     kernel_size: 3
     dropout: 0.5
+    scale: 10 # dimension of scales used while computing cwt matrix
 
   variance_embedding:
     pitch_quantization: "linear" # support 'linear' or 'log', 'log' is allowed only if the pitch values are not normalized during preprocessing

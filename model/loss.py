@@ -9,6 +9,7 @@ class FastSpeech2Loss(nn.Module):
         super(FastSpeech2Loss, self).__init__()
         self.pitch_feature_level = preprocess_config["pitch"]["feature"]
         self.energy_feature_level = preprocess_config["energy"]["feature"]
+        self.scale = preprocess_config["pitch"]["scales"]
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
 
@@ -30,17 +31,19 @@ class FastSpeech2Loss(nn.Module):
         mel_targets.requires_grad = False
 
         pitch_targets = pitch_targets.to(device)
+        pitch_predictions = pitch_predictions.to(device)
         energy_targets = energy_targets.to(device)
         log_duration_targets = log_duration_targets.to(device)
         mel_targets = mel_targets.to(device)
         cwt_targets = cwt_targets.to(device)
 
         if self.pitch_feature_level == "phoneme_level":
-            pitch_predictions = pitch_predictions.masked_select(src_masks).to(device)
+            pitch_predictions = pitch_predictions.masked_select(src_masks.to(device)).to(device)
             pitch_targets = pitch_targets.masked_select(src_masks.to(device))
 
-            _src_masks = src_masks.unsqueeze(2).expand(-1, -1, 10)
+            _src_masks = src_masks.unsqueeze(1).expand(-1, self.scale * 2, -1)
             cwt_predictions = cwt_predictions.masked_select(_src_masks).to(device)
+
             cwt_targets = cwt_targets.masked_select(_src_masks.to(device))
 
         elif self.pitch_feature_level == "frame_level":

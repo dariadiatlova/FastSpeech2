@@ -48,7 +48,7 @@ class FastSpeechLightning(LightningModule):
         return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     def _shared_step(self, input, output):
-        total_loss, mel_loss, postnet_mel_loss, pitch_loss, cwt_loss, energy_loss, duration_loss, cwt_loss = self.loss(self.device, input, output)
+        total_loss, mel_loss, postnet_mel_loss, pitch_loss, energy_loss, duration_loss, cwt_loss = self.loss(self.device, input, output)
         gen_log_dict = {f"train_loss/total_loss": total_loss,
                         f"train_loss/mel_loss": mel_loss,
                         f"train_loss/postnet_mel_loss": postnet_mel_loss,

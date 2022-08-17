@@ -25,19 +25,20 @@ def get_pitch_from_pitch_spec(pitch_spec):
 
 
 def torch_from_numpy(data):
-    if len(data) == 12:
+    if len(data) == 13:
         ids, raw_texts, speakers, texts, src_lens, max_src_len = data[:6]
-        mels, mel_lens, max_mel_len, pitches, energies, durations = data[6:]
+        mels, mel_lens, max_mel_len, cwt, pitches, energies, durations = data[6:]
         speakers = torch.from_numpy(np.zeros(len(speakers))).long()
         texts = torch.from_numpy(texts).long()
         src_lens = torch.from_numpy(src_lens)
         mels = torch.from_numpy(mels).float()
         mel_lens = torch.from_numpy(mel_lens)
         pitches = torch.from_numpy(pitches).float()
+        cwt = torch.from_numpy(cwt).float()
         energies = torch.from_numpy(energies)
         durations = torch.from_numpy(durations).long()
         return ids, raw_texts, speakers, texts, src_lens, max_src_len, mels, \
-               mel_lens, max_mel_len, pitches, energies, durations
+               mel_lens, max_mel_len, cwt, pitches, energies, durations
 
     if len(data) == 6:
         ids, raw_texts, speakers, texts, src_lens, max_src_len = data
@@ -278,18 +279,14 @@ def pad_2D(inputs, maxlen=None, pitch_spec=False):
             if np.shape(x)[1] > max_len:
                 raise ValueError("not max_len")
             s = np.shape(x)[0]
-            x_padded = np.pad(
-                x, (max_len - np.shape(x)[1], 0), mode="constant", constant_values=PAD
-            )
+            x_padded = np.pad(x, (max_len - np.shape(x)[1], 0), mode="constant", constant_values=PAD)
             return x_padded[:s, :]
         else:
             if np.shape(x)[0] > max_len:
                 raise ValueError("not max_len")
 
             s = np.shape(x)[1]
-            x_padded = np.pad(
-                x, (0, max_len - np.shape(x)[0]), mode="constant", constant_values=PAD
-            )
+            x_padded = np.pad(x, (0, max_len - np.shape(x)[0]), mode="constant", constant_values=PAD)
             return x_padded[:, :s]
 
     if maxlen:

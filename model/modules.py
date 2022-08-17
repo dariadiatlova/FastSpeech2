@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from ssqueezepy import icwt
 from utils.tools import get_mask_from_lengths, pad
 
 
@@ -18,11 +19,10 @@ class VarianceAdaptor(nn.Module):
             stats = json.load(f)
             energy_min, energy_max = stats["energy"][:2]
             pitch_min, pitch_max = stats["pitch"][:2]
-            pitch_mean, pitch_std = stats["pitch"][4:]
 
         self.duration_predictor = VariancePredictor(model_config)
         self.length_regulator = LengthRegulator(preprocess_config["device"])
-        self.pitch_predictor = PitchPredictor(model_config, pitch_mean, pitch_std)
+        self.pitch_predictor = PitchPredictor(model_config)
         self.energy_predictor = VariancePredictor(model_config)
 
         self.device = preprocess_config["device"]
@@ -47,8 +47,7 @@ class VarianceAdaptor(nn.Module):
             self.pitch_bins = nn.Parameter(torch.linspace(pitch_min, pitch_max, n_bins - 1), requires_grad=False)
         if energy_quantization == "log":
             self.energy_bins = nn.Parameter(
-                torch.exp(torch.linspace(np.log(energy_min), np.log(energy_max), n_bins - 1)), requires_grad=False,
-            )
+                torch.exp(torch.linspace(np.log(energy_min), np.log(energy_max), n_bins - 1)), requires_grad=False)
         else:
             self.energy_bins = nn.Parameter(torch.linspace(energy_min, energy_max, n_bins - 1), requires_grad=False)
 
@@ -56,14 +55,14 @@ class VarianceAdaptor(nn.Module):
         self.energy_embedding = nn.Embedding(n_bins, model_config["transformer"]["encoder_hidden"])
 
     def get_pitch_embedding(self, device, x, target, mask, control):
-        pitch_prediction, cwt_prediction = self.pitch_predictor(x, mask)
+        pitch_prediction, cwt = self.pitch_predictor(x, mask)
         self.pitch_embedding.to(device)
         if target is not None:
             embedding = self.pitch_embedding(torch.bucketize(target.to(device), self.pitch_bins.to(device)))
         else:
             pitch_prediction = pitch_prediction * control
             embedding = self.pitch_embedding(torch.bucketize(pitch_prediction.to(device), self.pitch_bins.to(device)))
-        return pitch_prediction, cwt_prediction, embedding
+        return pitch_prediction, cwt, embedding
 
     def get_energy_embedding(self, device, x, target, mask, control):
         prediction = self.energy_predictor(x, mask)
@@ -79,7 +78,7 @@ class VarianceAdaptor(nn.Module):
 
         log_duration_prediction = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
-            pitch_prediction, cwt_prediction, pitch_embedding = self.get_pitch_embedding(device, x, pitch_target, src_mask, p_control)
+            pitch_prediction, cwt, pitch_embedding = self.get_pitch_embedding(device, x, pitch_target, src_mask, p_control)
             x = x + pitch_embedding
         if self.energy_feature_level == "phoneme_level":
             energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, src_mask, p_control)
@@ -100,7 +99,7 @@ class VarianceAdaptor(nn.Module):
             energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, mel_mask, p_control)
             x = x + energy_embedding
 
-        return x, cwt_prediction, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask
+        return x, cwt, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask
 
 
 class LengthRegulator(nn.Module):
@@ -127,7 +126,6 @@ class LengthRegulator(nn.Module):
 
     def expand(self, batch, predicted):
         out = list()
-
         for i, vec in enumerate(batch): # t_phoneme, c -> {t_i, c} /forall i t_mel, c -> t_mel, c; t_mel = /sum t_i
             expand_size = predicted[i].item()
             out.append(vec.expand(max(int(expand_size), 0), -1))
@@ -185,15 +183,15 @@ class PitchPredictor(nn.Module):
     """Pitch Predictor using CWT"""
 
     def __init__(self, model_config):
-        super(VariancePredictor, self, pitch_mean, pitch_std).__init__()
+        super(PitchPredictor, self).__init__()
 
         self.input_size = model_config["transformer"]["encoder_hidden"]
         self.filter_size = model_config["variance_predictor"]["filter_size"]
         self.kernel = model_config["variance_predictor"]["kernel_size"]
         self.conv_output_size = model_config["variance_predictor"]["filter_size"]
         self.dropout = model_config["variance_predictor"]["dropout"]
-        self.pitch_mean = pitch_mean
-        self.pitch_std = pitch_std
+        self.scale = model_config["variance_predictor"]["scale"]
+        self.scales = np.array(list(range(1, self.scale + 1))).astype(np.float32)
 
         self.conv_layer = nn.Sequential(
             OrderedDict(
@@ -210,27 +208,24 @@ class PitchPredictor(nn.Module):
                 ]
             )
         )
-
-        self.linear_layer = nn.Linear(self.conv_output_size, 10)
-
-    def extract_pitch(self, out):
-        bs, pitch_size, scale_size = out.shape
-        res = torch.empty((bs, pitch_size), requires_grad=True, dtype=torch.FloatTensor)
-        for i in range(bs):
-            res[i, :] = denormalize(get_pitch_from_pitch_spec(out[i, :, :].squeeze(0).detach.cpu.numpy()),
-                                    self.pitch_mean, self.pitch_std)
-        return res
+        self.linear_layer = nn.Linear(self.conv_output_size, self.scale * 2)
 
     def forward(self, encoder_output, mask):
-        out = self.conv_layer(encoder_output)
-        out = self.linear_layer(out)
+        out = self.linear_layer(self.conv_layer(encoder_output)).permute(0, 2, 1)
+        bs = out.shape[0]
 
         if mask is not None:
-            mask = msk.unsqueeze(2).expand(-1, -1, 10)
-            cwt = out.masked_fill(mask, 0.0)
-            pitch = extract_pitch(out)
+            mask = mask.unsqueeze(1).expand(-1, self.scale * 2, -1)
+            out = out.masked_fill(mask, 0.0)
+            cwt_batch = torch.complex(out[:, :self.scale, :], out[:, self.scale:, :])
+            batch = []
+            for i in range(bs):
+                batch.append(torch.tensor(
+                    icwt(cwt_batch.detach().cpu().numpy()[i, :, :], wavelet="cmhat", scales=self.scales),
+                    requires_grad=True))
+            pitch = torch.stack(batch)
 
-        return pitch, cwt
+        return pitch, out
 
 
 class Conv(nn.Module):
