@@ -16,6 +16,7 @@ wandb:
   save_last: true
 
 preprocess:
+  scale: 5
   device: "cuda"
   dataset: "LJSpeech"
   batch_size: 32

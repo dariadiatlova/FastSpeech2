@@ -10,9 +10,12 @@ class FastSpeech2Loss(nn.Module):
         super(FastSpeech2Loss, self).__init__()
         self.pitch_feature_level = preprocess_config["pitch"]["feature"]
         self.energy_feature_level = preprocess_config["energy"]["feature"]
+        self.batch_size = preprocess_config["batch_size"]
+        self.n_mels = preprocess_config["mel"]["n_mel_channels"]
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
         self.lpips_loss = lpips.LPIPS(net='alex')
+        self.scale = preprocess_config["scale"]
 
     def forward(self, device, inputs, predictions):
         mel_targets = inputs[6]
@@ -53,11 +56,27 @@ class FastSpeech2Loss(nn.Module):
         log_duration_predictions = log_duration_predictions.masked_select(src_masks)
         log_duration_targets = log_duration_targets.masked_select(src_masks)
 
+        # import pdb
+        # pdb.set_trace()
+
+        # reshape mask to 3d size -> normalize mels to [-1, 1] -> change pad values to 0
+        mask3d = mel_masks.unsqueeze(2).expand(-1, -1, self.n_mels)
+
+        mel_predicted_lpips = mel_predictions
+        mel_predicted_lpips = 2 * (mel_predicted_lpips - torch.min(mel_predicted_lpips)) / \
+                              (torch.max(mel_predicted_lpips) - torch.min(mel_predicted_lpips)) - 1
+        mel_predicted_lpips[~mask3d] = 0
+
+        mel_target_lpips = mel_targets
+        mel_target_lpips = 2 * (mel_target_lpips - torch.min(mel_target_lpips)) / \
+                           (torch.max(mel_target_lpips) - torch.min(mel_target_lpips)) - 1
+        mel_target_lpips[~mask3d] = 0
+
         mel_predictions = mel_predictions.masked_select(mel_masks.unsqueeze(-1)) # b, t, 1 -> b, t, c
         postnet_mel_predictions = postnet_mel_predictions.masked_select(mel_masks.unsqueeze(-1))
         mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
         mel_loss = self.mae_loss(mel_predictions, mel_targets)
-        lpips_loss = self.lpips_loss(mel_predictions, mel_targets)
+        lpips_loss = torch.mean(self.lpips_loss(mel_predicted_lpips.unsqueeze(1), mel_target_lpips.unsqueeze(1))) * self.scale
         postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
 
         pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
