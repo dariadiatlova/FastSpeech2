@@ -7,7 +7,7 @@ wandb:
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
-  project: "FastSpeechLJ16"
+  project: "FSLJ16"
   offline: false
   log_every_n_steps: 1
   val_step: 10
@@ -18,11 +18,11 @@ wandb:
 preprocess:
   device: "cuda"
   dataset: "LJSpeech"
-  batch_size: 32
+  batch_size: 64
   sort: true
   drop_last: true
   include_empty_intervals: true
-  val_size: 32
+  val_size: 64
   path:
     raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
     preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
