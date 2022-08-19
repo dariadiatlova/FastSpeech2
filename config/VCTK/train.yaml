@@ -13,7 +13,7 @@ wandb:
   log_every_n_steps: 1
   val_step: 30
   save_step: 100000
-  total_step: 1000000
+  total_step: 500000
   save_last: true
 
 preprocess:
@@ -26,7 +26,7 @@ preprocess:
   path:
     speaker_mapping: "/root/storage/dasha/data/vctk/speaker_ids_mapping.json"
     raw_path: "/root/storage/dasha/data/vctk/wavs16vad2"
-    preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16vad2"
+    preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16debug"
     phones_mapping_path: "/root/storage/dasha/data/vctk/vctk_english_phones_mapping.json"
     ckpt_path: null
   audio:
@@ -41,7 +41,6 @@ preprocess:
     mel_fmin: 0
     mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
   pitch:
-    eps: 45
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True
   energy:

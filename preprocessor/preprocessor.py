@@ -224,6 +224,10 @@ class Preprocessor:
             mel_spectrogram = np.pad(mel_spectrogram,
                                      ((0, 0), (0, duration_sum - mel_count)),
                                      mode="constant", constant_values=PAD_MEL_VALUE)
+
+        if mel_count - duration_sum == 1:
+            mel_spectrogram = mel_spectrogram[:, :duration_sum]
+
         mel_count = mel_spectrogram.shape[1]
 
         assert mel_count == duration_sum, f"Mels and durations mismatch, mel count: {mel_count}, " \
@@ -300,7 +304,7 @@ class Preprocessor:
         )
 
     def get_alignment(self, tier):
-        sil_phones = ["sil", "sp", "spn"]
+        sil_phones = ["sil", "sp", "spn", ""]
 
         phones = []
         durations = []
