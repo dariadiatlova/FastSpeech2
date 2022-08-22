@@ -39,8 +39,8 @@ def main(dir_path, txt_path, speaker_ids_mapping_path):
 
 
 if __name__ == "__main__":
-    speaker_ids_mapping_path = "/root/storage/dasha/data/vctk/speaker_ids_mapping.json"
-    dir_path = "/root/storage/dasha/data/vctk/TextGrids"
-    txt_path = "/root/storage/dasha/data/vctk/val_ids.txt"
+    speaker_ids_mapping_path = "/root/storage/dasha/data/vctk/librosa_speaker_ids_mapping.json"
+    dir_path = "/root/storage/dasha/data/vctk/TextGridsLibrosaVad"
+    txt_path = "/root/storage/dasha/data/vctk/librosa_val_ids.txt"
 
     main(dir_path, txt_path, speaker_ids_mapping_path)

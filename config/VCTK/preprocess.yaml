@@ -1,10 +1,10 @@
 device: "cuda"
 path:
-  text_grids_path: "/root/storage/dasha/data/vctk/TextGridsVad2"
-  raw_path: "/root/storage/dasha/data/vctk/wavs16vad2"
-  preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16debug"
-  val_ids_path: "/root/storage/dasha/data/vctk/val_ids.txt"
-  speaker_mapping: "/root/storage/dasha/data/vctk/speaker_ids_mapping.json"
+  text_grids_path: "/root/storage/dasha/data/vctk/TextGridsLibrosaVad2"
+  raw_path: "/root/storage/dasha/data/vctk/librosa_vad30_16"
+  preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16librosa30"
+  val_ids_path: "/root/storage/dasha/data/vctk/librosa_val_ids.txt"
+  speaker_mapping: "/root/storage/dasha/data/vctk/librosa_speaker_ids_mapping.json"
 preprocessing:
   val_size: 108
   include_empty_intervals: true
