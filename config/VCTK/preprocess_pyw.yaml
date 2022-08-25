@@ -2,7 +2,7 @@ device: "cuda"
 path:
   text_grids_path: "/root/storage/dasha/data/vctk/TextGrids"
   raw_path: "/root/storage/dasha/data/vctk/wavs16"
-  preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16yaapt"
+  preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16"
   val_ids_path: "/root/storage/dasha/data/vctk/val_ids.txt"
   speaker_mapping: "/root/storage/dasha/data/vctk/speaker_ids_mapping.json"
 preprocessing:

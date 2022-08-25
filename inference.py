@@ -6,7 +6,7 @@ from utils.model import get_dataloader
 from utils.tools import torch_from_numpy
 
 
-@hydra.main(version_base=None, config_path="config/Natasha", config_name="train")
+@hydra.main(version_base=None, config_path="config/VCTK", config_name="train")
 def run(cfg):
     model_weights = cfg.checkpoint_path
     model = FastSpeechLightning.load_from_checkpoint(checkpoint_path=model_weights, config=cfg)

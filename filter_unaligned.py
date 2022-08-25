@@ -12,6 +12,6 @@ def main(file_path, dir_path):
 
 
 if __name__ == "__main__":
-    unaligned_path = "/root/Documents/MFA/librosa_vad30_16_validate_pretrained/unalignable_files.csv"
-    source_directory = "/root/storage/dasha/data/vctk/librosa_vad30_16"
+    unaligned_path = "/root/Documents/MFA/wavs16_validate_pretrained/unalignable_files.csv"
+    source_directory = "/root/storage/dasha/data/vctk/wavs16"
     main(unaligned_path, source_directory)

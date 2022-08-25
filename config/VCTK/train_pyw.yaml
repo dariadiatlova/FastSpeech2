@@ -1,10 +1,10 @@
 seed: 8000
 n_gpus: 1
-checkpoint_path: "/root/storage/dasha/repos/fastspeech/base_vctk/FastSpeech2/wandb/run-20220824_053758-w8ab7zhu/files/last.ckpt"
+checkpoint_path: null
 vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk16/hifi_vctk_191_epoch.pt"
 filepath: null
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/vctk/preprocessed16yaapt/trimmed_wav"
+  gt_audio_directory_path: "/root/storage/dasha/data/vctk/preprocessed16/trimmed_wav"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
@@ -18,7 +18,7 @@ wandb:
 
 preprocess:
   scale: 10
-  device: "cpu"
+  device: "cuda"
   batch_size: 64
   sort: true
   drop_last: true
@@ -26,8 +26,8 @@ preprocess:
   val_size: 108
   path:
     speaker_mapping: "/root/storage/dasha/data/vctk/speaker_ids_mapping.json"
-    raw_path: "/root/storage/dasha/data/vctk/preprocessed16yaapt/trimmed_wav"
-    preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16yaapt"
+    raw_path: "/root/storage/dasha/data/vctk/preprocessed16/trimmed_wav"
+    preprocessed_path: "/root/storage/dasha/data/vctk/preprocessed16"
     phones_mapping_path: "/root/storage/dasha/data/vctk/vctk_english_phones_mapping.json"
     ckpt_path: null
   audio:
@@ -51,7 +51,7 @@ preprocess:
 model:
   emotion: False
   multi_speaker: True
-  device: "cpu"
+  device: "cuda"
   max_seq_len: 3000
 
   transformer:

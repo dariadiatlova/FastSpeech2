@@ -11,9 +11,6 @@ from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from scipy.io import wavfile
 
-import amfm_decompy.pYAAPT as pYAAPT
-import amfm_decompy.basic_tools as basic
-
 import audio as Audio
 from audio.compute_mel import PAD_MEL_VALUE
 
@@ -175,8 +172,13 @@ class Preprocessor:
             raw_text = f.readline().strip("\n")
 
         # Compute fundamental frequency
-        _signal = basic.SignalObj(trimmed_wav_filename, sr=self.sampling_rate)
-        pitch = pYAAPT.yaapt(_signal, frame_space=8, fft_length=4096).samp_values
+
+        pitch, t = pw.dio(
+            wav.astype(np.float64),
+            self.sampling_rate,
+            frame_period=self.hop_length / self.sampling_rate * 1000,
+        )
+        pitch = pw.stonemask(wav.astype(np.float64), pitch, t, self.sampling_rate)
 
         # Compute mel-scale spectrogram and energy
         mel_spectrogram, energy = Audio.tools.get_mel_from_wav(wav, self.compute_mel_energy)
@@ -184,6 +186,9 @@ class Preprocessor:
 
         if pitch.shape[0] < mel_count:
             pitch = np.pad(pitch, (0, mel_count - pitch.shape[0]), 'constant', constant_values=(0, 0))
+
+        if pitch.shape[0] - mel_count == 1:
+            pitch = pitch[:-1]
 
         assert pitch.shape[0] == mel_count, f"Pitch isn't count for each mel. Mel count: {mel_count}, pitch " \
                                             f"count {pitch.shape[0]}"

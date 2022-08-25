@@ -88,7 +88,7 @@ class VarianceAdaptor(nn.Module):
             x, mel_len = self.length_regulator(x, duration_target, max_len)
             duration_rounded = duration_target
         else:
-            duration_rounded = torch.clamp((torch.round(torch.exp(log_duration_prediction) - 1) * d_control), min=1)
+            duration_rounded = torch.clamp((torch.round(torch.exp(log_duration_prediction) - 1) * d_control), min=0)
             x, mel_len = self.length_regulator(x, duration_rounded, max_len)
             mel_mask = get_mask_from_lengths(mel_len, device=self.device)
 
@@ -126,7 +126,6 @@ class LengthRegulator(nn.Module):
 
     def expand(self, batch, predicted):
         out = list()
-
         for i, vec in enumerate(batch): # t_phoneme, c -> {t_i, c} /forall i t_mel, c -> t_mel, c; t_mel = /sum t_i
             expand_size = predicted[i].item()
             out.append(vec.expand(max(int(expand_size), 0), -1))

@@ -24,7 +24,7 @@ class FastSpeech2(nn.Module):
         if model_config["multi_speaker"]:
             with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "speakers.json"), "r") as f:
                 speaker_dict = json.load(f)
-                n_speaker = np.unique([*speaker_dict.values()]).shape[0]
+                n_speaker = max(np.unique([*speaker_dict.values()]).astype(int)) + 1
             self.speaker_emb = nn.Embedding(n_speaker, model_config["transformer"]["encoder_hidden"])
 
         self.emotion_emb = None
