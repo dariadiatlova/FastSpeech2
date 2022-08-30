@@ -36,8 +36,6 @@ def torch_from_numpy(data):
         src_lens = torch.from_numpy(src_lens)
         return ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len
 
-
-def to_device(data, device):
     if len(data) == 12:
         (
             ids,

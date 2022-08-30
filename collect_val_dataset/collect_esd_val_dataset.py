@@ -11,8 +11,8 @@ def set_check(dir_path, speaker_id, file_id, emotions):
 def main(dir_path, txt_path):
     """
     Function iterates through all .TextGrid files in a directory and writes to the .txt file ids of each
-    speaker present in a dataset, pronouncing one sentence with all existed emotions (5 emotions for speaker 1-10) and
-    2 emotions for speaker 11-13. In total txt file should consist of 56 sentences.
+    speaker present in a dataset, pronouncing one sentence with all existed emotions (5 emotions for speaker 1-10).
+    In total txt file should consist of 50 sentences.
     """
     filenames = os.listdir(dir_path)
     emotions = ["0", "1", "2", "3", "4"]

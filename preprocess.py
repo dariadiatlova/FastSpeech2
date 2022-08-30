@@ -1,8 +1,7 @@
 import argparse
 
 import yaml
-
-from preprocessor.preprocessor import Preprocessor
+from preprocessor.preprocessor_yaapt import Preprocessor
 
 
 if __name__ == "__main__":

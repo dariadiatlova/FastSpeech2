@@ -8,7 +8,7 @@ import tgt
 
 from audio.compute_mel import ComputeMelEnergy
 from audio.tools import get_mel_from_wav
-from preprocessor.preprocessor import Preprocessor
+from preprocessor.preprocessor_yaapt import Preprocessor
 
 
 if __name__ == "__main__":

@@ -1,30 +1,31 @@
 seed: 8000
 n_gpus: 1
-checkpoint_path: null
-vocoder_path: "/root/storage/dasha/repos/EmoNeMo/examples/tts/nemo_experiments/HifiGan/save/vocoder_esd_3000.pt"
+checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/vctk16/yaapt/yaapt_lpips_336k_steps.ckpt"
+vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk16/hifi_vctk_5099.pt"
 filepath: null
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/emo-data/clean/wavs"
+  gt_audio_directory_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/trimmed_wav"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
-  project: "FastSpeechESD+PitchLossPriority"
+  project: "FS_VCTK_ESD"
   offline: false
   log_every_n_steps: 1
   val_step: 30
-  save_step: 1000000
-  total_step: 1000000
+  save_step: 100000
+  total_step: 300000
   save_last: true
 
 preprocess:
+  scale: 10
   device: "cuda"
-  batch_size: 16
+  batch_size: 64
   sort: true
   drop_last: true
   include_empty_intervals: true
   val_size: 0
   path:
-    raw_path: "/root/storage/dasha/data/emo-data/clean/wavs"
+    raw_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/trimmed_wav"
     preprocessed_path: "/root/storage/dasha/data/emo-data/clean/preprocessed"
     phones_mapping_path: "/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json"
     ckpt_path: null
@@ -40,7 +41,6 @@ preprocess:
     mel_fmin: 0
     mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
   pitch:
-    eps: 45
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True
   energy:
@@ -48,10 +48,12 @@ preprocess:
     normalization: True
 
 model:
-  emotion: True
-  multi_speaker: True
+  retrain_speaker_embed: true
+  old_speaker_count: 108
+  emotion: true
+  multi_speaker: true
   device: "cuda"
-  max_seq_len: 2000
+  max_seq_len: 3000
 
   transformer:
     encoder_layer: 4

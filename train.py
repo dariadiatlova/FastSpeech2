@@ -1,4 +1,8 @@
+import os
+import json
 import hydra
+import numpy as np
+import torch.nn as nn
 
 from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import TQDMProgressBar, ModelCheckpoint
@@ -36,7 +40,12 @@ def train(cfg) -> None:
     synthesis_loader = get_dataloader(config=cfg.preprocess, train=False)
     model = FastSpeechLightning(cfg)
     if cfg.checkpoint_path is not None:
-        model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path, config=cfg)
+        model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path, config=cfg, strict=False)
+        if cfg.model.retrain_speaker_embed:
+            with open(os.path.join(cfg.preprocess.path.preprocessed_path, "speakers.json"), "r") as f:
+                speaker_dict = json.load(f)
+                n_speaker = max(np.unique([*speaker_dict.values()]).astype(int)) + 1
+                model.speaker_emb = nn.Embedding(n_speaker, cfg.model.transformer.encoder_hidden)
     trainer.fit(model, train_loader, synthesis_loader)
 
 
