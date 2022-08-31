@@ -3,7 +3,7 @@ n_gpus: 1
 checkpoint_path: null
 vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/lj16/hifi_lj_593_epoch.pt"
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
+  gt_audio_directory_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16/trimmed_wav"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
@@ -12,11 +12,11 @@ wandb:
   log_every_n_steps: 1
   val_step: 10
   save_step: 50000
-  total_step: 200000
+  total_step: 100000
   save_last: true
 
 preprocess:
-  scale: 5
+  scale: 7
   device: "cuda"
   dataset: "LJSpeech"
   batch_size: 32
@@ -25,7 +25,7 @@ preprocess:
   include_empty_intervals: true
   val_size: 32
   path:
-    raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
+    raw_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16/trimmed_wav"
     preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
     phones_mapping_path: "/root/storage/dasha/data/lj_mfa_data/lj_phones_mapping.json"
     ckpt_path: null

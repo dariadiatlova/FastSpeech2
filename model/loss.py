@@ -17,7 +17,7 @@ class FastSpeech2Loss(nn.Module):
         self.lpips_loss = lpips.LPIPS(net='alex')
         self.scale = preprocess_config["scale"]
 
-    def forward(self, device, inputs, predictions):
+    def forward(self, device, inputs, predictions, compute_mel_loss: bool = True):
         mel_targets = inputs[6]
         pitch_targets, energy_targets, duration_targets = inputs[9:]
         mel_predictions = predictions[0]
@@ -56,8 +56,12 @@ class FastSpeech2Loss(nn.Module):
         log_duration_predictions = log_duration_predictions.masked_select(src_masks)
         log_duration_targets = log_duration_targets.masked_select(src_masks)
 
-        # import pdb
-        # pdb.set_trace()
+        pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
+        energy_loss = self.mse_loss(energy_predictions, energy_targets)
+        duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
+
+        if not compute_mel_loss:
+            return pitch_loss, energy_loss, duration_loss
 
         # reshape mask to 3d size -> normalize mels to [-1, 1] -> change pad values to 0
         mask3d = mel_masks.unsqueeze(2).expand(-1, -1, self.n_mels)
@@ -78,10 +82,6 @@ class FastSpeech2Loss(nn.Module):
         mel_loss = self.mae_loss(mel_predictions, mel_targets)
         lpips_loss = torch.mean(self.lpips_loss(mel_predicted_lpips.unsqueeze(1), mel_target_lpips.unsqueeze(1))) * self.scale
         postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
-
-        pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
-        energy_loss = self.mse_loss(energy_predictions, energy_targets)
-        duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
 
         total_loss = mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss + lpips_loss
 

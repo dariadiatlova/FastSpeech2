@@ -60,11 +60,16 @@ class FastSpeechLightning(LightningModule):
         self.log_dict(gen_log_dict, on_step=True, on_epoch=False)
         return total_loss
 
-    def forward(self, basenames, speakers, texts, text_lens, max_text_lens):
-        predictions = self.model(self.device,
-                                 speakers=speakers, texts=texts, src_lens=text_lens, max_src_len=max_text_lens)
-        synthesized_wav = synthesize_predicted_wav(0, predictions, self.vocoder)
-        return synthesized_wav
+    def forward(self, speakers: torch.Tensor, texts: torch.Tensor, src_lens: torch.Tensor):
+        """
+        return: output, postnet_output, p_predictions, e_predictions, log_d_predictions, d_rounded, \
+        src_masks, mel_masks, src_lens, mel_lens
+        """
+        return self.model(device=self.device,
+                          speakers=speakers.to(self.device),
+                          texts=texts.to(self.device),
+                          src_lens=src_lens.to(self.device),
+                          max_src_len=max(src_lens))
 
     def training_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
@@ -76,36 +81,64 @@ class FastSpeechLightning(LightningModule):
     def validation_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
         speakers, texts, text_lens, max_src_len = batch[2:6]
-        gt_mel, gt_mel_lens = batch[6:8]
+        gt_mel, gt_mel_lens, gt_max_mel_len = batch[6:9]
+        gt_durations = batch[11]
         basenames = batch[0]
-        predictions = self.model(device=self.device,
-                                 speakers=speakers.to(self.device),
-                                 texts=texts.to(self.device),
-                                 src_lens=text_lens.to(self.device),
-                                 max_src_len=max_src_len)
+        batch_size = len(speakers)
+        with torch.no_grad():
 
-        for i, tag in enumerate(basenames):
-            synthesized_wav = synthesize_predicted_wav(i, predictions, self.vocoder)
+            predictions = self.model(device=self.device,
+                                     speakers=speakers.to(self.device),
+                                     texts=texts.to(self.device),
+                                     src_lens=text_lens.to(self.device),
+                                     max_src_len=max_src_len)
+            pitch_loss, energy_loss, duration_loss = self.loss(self.device, batch, predictions, compute_mel_loss=False)
 
-            self.logger.experiment.log(
-                {f"Validation_audio/predicted_{i}": wandb.Audio(
-                    synthesized_wav, caption=f"generated_{i}", sample_rate=self.sampling_rate)}
-            )
+            validation_predictions = self.model(device=self.device,
+                                                speakers=speakers.to(self.device),
+                                                texts=texts.to(self.device),
+                                                src_lens=text_lens.to(self.device),
+                                                max_src_len=max_src_len,
+                                                mel_lens=gt_mel_lens.to(self.device),
+                                                max_mel_len=gt_max_mel_len,
+                                                d_targets=gt_durations.to(self.device))
+            loss = self.loss(self.device, batch, validation_predictions)
+            total_loss, mel_loss, postnet_mel_loss = loss[:3]
+            lpips_loss = loss[-1]
 
-            if self.global_step == 0:
-                vocoder_synthesized_from_gt = synthesize_from_gt_mel(gt_mel[i, :gt_mel_lens[i]], self.vocoder)
+            gen_log_dict = {f"val_loss/total_loss": total_loss,
+                            f"val_loss/mel_loss": mel_loss,
+                            f"val_loss/postnet_mel_loss": postnet_mel_loss,
+                            f"val_loss/pitch_loss": pitch_loss,
+                            f"val_loss/energy_loss": energy_loss,
+                            f"val_loss/duration_loss": duration_loss,
+                            f"val_loss/lpips_loss": lpips_loss}
 
-                # log original audios only ones
-                ground_truth_audio_path = f"{self.ground_truth_audio_path}/{tag}.wav"
-                ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
-                ground_truth_wav = ground_truth_wav.squeeze(0)
+            self.log_dict(gen_log_dict, on_step=True, on_epoch=False, batch_size=batch_size)
+
+            for i, tag in enumerate(basenames):
+                synthesized_wav = synthesize_predicted_wav(i, predictions, self.vocoder)
 
                 self.logger.experiment.log(
-                        {f"Validation_audio/original{i}": wandb.Audio(
-                            ground_truth_wav, caption=f"original_{i}", sample_rate=self.sampling_rate)}
-                    )
-
-                self.logger.experiment.log(
-                    {f"Reconstructed_audio/reconstructed_{i}": wandb.Audio(
-                        vocoder_synthesized_from_gt, caption=f"reconstructed_{i}", sample_rate=self.sampling_rate)}
+                    {f"Validation_audio/predicted_{tag}": wandb.Audio(
+                        synthesized_wav, caption=f"generated_{tag}", sample_rate=self.sampling_rate)}
                 )
+
+                if self.global_step == 0:
+                    vocoder_synthesized_from_gt = synthesize_from_gt_mel(gt_mel[i, :gt_mel_lens[i]], self.vocoder)
+
+                    # log original audios only ones
+                    ground_truth_audio_path = f"{self.ground_truth_audio_path}/{tag}.wav"
+                    ground_truth_wav, sr = torchaudio.load(ground_truth_audio_path)
+                    ground_truth_wav = ground_truth_wav.squeeze(0)
+
+                    self.logger.experiment.log(
+                            {f"Validation_audio/original{tag}": wandb.Audio(
+                                ground_truth_wav, caption=f"original_{tag}", sample_rate=self.sampling_rate)}
+                        )
+
+                    self.logger.experiment.log(
+                        {f"Reconstructed_audio/reconstructed_{tag}": wandb.Audio(
+                            vocoder_synthesized_from_gt, caption=f"reconstructed_{tag}", sample_rate=self.sampling_rate)}
+                    )
+        return total_loss
