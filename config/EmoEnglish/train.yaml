@@ -28,7 +28,7 @@ preprocess:
     raw_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/trimmed_wav"
     preprocessed_path: "/root/storage/dasha/data/emo-data/clean/preprocessed"
     phones_mapping_path: "/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json"
-    esd_vctk_speaker_mapping_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/vctk_esd_speaker_mapping.json"
+    esd_vctk_speaker_mapping_path: "/root/storage/dasha/data/emo-data/clean/vctk_esd_speaker_mapping.json"
     ckpt_path: null
   audio:
     sampling_rate: 16000
