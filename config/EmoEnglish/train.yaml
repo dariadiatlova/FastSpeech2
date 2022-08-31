@@ -12,8 +12,8 @@ wandb:
   offline: false
   log_every_n_steps: 1
   val_step: 30
-  save_step: 100000
-  total_step: 300000
+  save_step: 50000
+  total_step: 100000
   save_last: true
 
 preprocess:
@@ -28,6 +28,7 @@ preprocess:
     raw_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/trimmed_wav"
     preprocessed_path: "/root/storage/dasha/data/emo-data/clean/preprocessed"
     phones_mapping_path: "/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json"
+    esd_vctk_speaker_mapping_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/vctk_esd_speaker_mapping.json"
     ckpt_path: null
   audio:
     sampling_rate: 16000
@@ -48,7 +49,7 @@ preprocess:
     normalization: True
 
 model:
-  retrain_speaker_embed: true
+  retrain_speaker_embed: false
   old_speaker_count: 108
   emotion: true
   multi_speaker: true

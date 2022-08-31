@@ -25,6 +25,9 @@ class FastSpeech2(nn.Module):
             self.speaker_emb = nn.Embedding(model_config["old_speaker_count"],
                                             model_config["transformer"]["encoder_hidden"])
 
+        with open(os.path.join(preprocess_config["path"]["esd_vctk_speaker_mapping_path"])) as f:
+            self.speakers_dict = json.load(f)
+
         self.emotion_emb = None
         if model_config["emotion"]:
             with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "emotions.json"), "r") as f:
@@ -40,6 +43,7 @@ class FastSpeech2(nn.Module):
         output = self.encoder(texts.to(device), src_masks.to(device))
 
         if self.speaker_emb is not None:
+            speakers = torch.Tensor([self.speakers_dict[i] for i in speakers]).long().to(device)
             self.speaker_emb = self.speaker_emb.to(device)
             output = output + self.speaker_emb(speakers.to(device)).unsqueeze(1).expand(-1, max_src_len, -1)
         if self.emotion_emb is not None:
