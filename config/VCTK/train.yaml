@@ -1,7 +1,7 @@
 seed: 8000
 n_gpus: 1
-checkpoint_path: "/root/storage/dasha/repos/fastspeech/base_vctk/FastSpeech2/wandb/run-20220824_053758-w8ab7zhu/files/last.ckpt"
-vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk16/hifi_vctk_191_epoch.pt"
+checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/vctk16/yaapt/yaapt_lpips_336k_steps.ckpt"
+vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk16/hifi_vctk_5099.pt"
 filepath: null
 wandb:
   gt_audio_directory_path: "/root/storage/dasha/data/vctk/preprocessed16yaapt/trimmed_wav"
