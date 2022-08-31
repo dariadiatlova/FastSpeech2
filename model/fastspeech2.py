@@ -3,7 +3,7 @@ import os
 
 import torch.nn as nn
 import numpy as np
-
+import torch
 from transformer import Encoder, Decoder, PostNet
 from utils.tools import get_mask_from_lengths
 from .modules import VarianceAdaptor
@@ -43,7 +43,7 @@ class FastSpeech2(nn.Module):
         output = self.encoder(texts.to(device), src_masks.to(device))
 
         if self.speaker_emb is not None:
-            speakers = torch.Tensor([self.speakers_dict[i] for i in speakers]).long().to(device)
+            speakers = torch.Tensor([self.speakers_dict[str(i.item())] for i in speakers]).long().to(device)
             self.speaker_emb = self.speaker_emb.to(device)
             output = output + self.speaker_emb(speakers.to(device)).unsqueeze(1).expand(-1, max_src_len, -1)
         if self.emotion_emb is not None:
