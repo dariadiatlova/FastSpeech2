@@ -48,6 +48,7 @@ class Preprocessor:
         )
 
     def build_from_path(self):
+        os.makedirs((os.path.join(self.out_dir, "trimmed_wav")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "mel")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "pitch")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "energy")), exist_ok=True)
@@ -158,6 +159,8 @@ class Preprocessor:
         # Read and trim wav files
         wav, _ = librosa.load(wav_path, sr=self.sampling_rate)
         wav = wav[int(self.sampling_rate * start):int(self.sampling_rate * end)].astype(np.float32)
+        trimmed_wav_filename = os.path.join(self.out_dir, "trimmed_wav", f"{short_filename}.wav")
+        wavfile.write(trimmed_wav_filename, self.sampling_rate, wav)
 
         # Read raw text
         with open(text_path, "r") as f:
@@ -195,6 +198,9 @@ class Preprocessor:
             mel_spectrogram = np.pad(mel_spectrogram,
                                      ((0, 0), (0, duration_sum - mel_count)),
                                      mode="constant", constant_values=PAD_MEL_VALUE)
+        if mel_count - duration_sum == 1:
+            mel_spectrogram = mel_spectrogram[:, :duration_sum]
+
         mel_count = mel_spectrogram.shape[1]
 
         assert mel_count == duration_sum, f"Mels and durations mismatch, mel count: {mel_count}, " \
@@ -262,7 +268,7 @@ class Preprocessor:
         )
 
     def get_alignment(self, tier):
-        sil_phones = ["sil", "sp", "spn"]
+        sil_phones = ["sil", "sp", "spn", ""]
 
         phones = []
         durations = []
