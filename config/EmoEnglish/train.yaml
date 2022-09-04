@@ -1,10 +1,10 @@
 seed: 8000
 n_gpus: 1
-checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/vctk16/yaapt/yaapt_lpips_336k_steps.ckpt"
-vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk16/hifi_vctk_5099.pt"
+checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/vctk16/pyw/epoch=730-step=500000.ckpt"
+vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk_esd/HiFi--val_loss=0.1967-epoch=4549.pt"
 filepath: null
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/trimmed_wav"
+  gt_audio_directory_path: "/root/storage/dasha/data/emo-data/english_esd/preprocessed/trimmed_wav"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
@@ -13,11 +13,11 @@ wandb:
   log_every_n_steps: 1
   val_step: 30
   save_step: 50000
-  total_step: 100000
+  total_step: 200000
   save_last: true
 
 preprocess:
-  scale: 10
+  scale: 7
   device: "cuda"
   batch_size: 64
   sort: true
@@ -25,10 +25,10 @@ preprocess:
   include_empty_intervals: true
   val_size: 0
   path:
-    raw_path: "/root/storage/dasha/data/emo-data/clean/preprocessed/trimmed_wav"
-    preprocessed_path: "/root/storage/dasha/data/emo-data/clean/preprocessed"
-    phones_mapping_path: "/root/storage/dasha/data/emo-data/clean/english_phones_mapping.json"
-    esd_vctk_speaker_mapping_path: "/root/storage/dasha/data/emo-data/clean/vctk_esd_speaker_mapping.json"
+    raw_path: "/root/storage/dasha/data/emo-data/english_esd/preprocessed/trimmed_wav"
+    preprocessed_path: "/root/storage/dasha/data/emo-data/english_esd/preprocessed"
+    phones_mapping_path: "/root/storage/dasha/data/emo-data/english_esd/esd_phones_mapping.json"
+    esd_vctk_speaker_mapping_path: "/root/storage/dasha/data/emo-data/english_esd/vctk_esd_speaker_mapping.json"
     ckpt_path: null
   audio:
     sampling_rate: 16000

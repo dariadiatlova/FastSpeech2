@@ -4,7 +4,7 @@ import numpy as np
 
 def set_check(dir_path, speaker_id, file_id, emotions):
     paths_bool = [os.path.exists(f"{dir_path}/{speaker_id}_{file_id}_{i}.TextGrid") for i in emotions]
-    print(paths_bool)
+    # print(paths_bool)
     paths = tuple([f"{speaker_id}_{file_id}_{i}" for i in emotions])
     return np.all(paths_bool), paths
 
@@ -39,7 +39,7 @@ def main(dir_path, original_val_ids_path, shorten_val_ids_path):
 
 
 if __name__ == "__main__":
-    dir_path = "/root/storage/dasha/data/emo-data/english_esd/TextGrids"
+    dir_path = "/root/storage/dasha/data/emo-data/english_esd/TextGrid"
     original_val_ids_path = "/root/storage/dasha/data/emo-data/english_esd/val_ids.txt"
     shorten_val_ids_path = "/root/storage/dasha/data/emo-data/english_esd/short_val_ids.txt"
     main(dir_path, original_val_ids_path, shorten_val_ids_path)

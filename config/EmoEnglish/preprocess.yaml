@@ -1,9 +1,9 @@
 device: "cuda"
 path:
-  text_grids_path: "/root/storage/dasha/data/emo-data/clean/TextGrids"
-  raw_path: "/root/storage/dasha/data/emo-data/clean/wavs"
-  preprocessed_path: "/root/storage/dasha/data/emo-data/clean/preprocessed"
-  val_ids_path: "/root/storage/dasha/data/emo-data/clean/copied_wavs_val_paths.txt"
+  text_grids_path: "/root/storage/dasha/data/emo-data/english_esd/TextGrid"
+  raw_path: "/root/storage/dasha/data/emo-data/english_esd/wavs"
+  preprocessed_path: "/root/storage/dasha/data/emo-data/english_esd/preprocessed"
+  val_ids_path: "/root/storage/dasha/data/emo-data/english_esd/short_val_ids.txt"
 preprocessing:
   val_size: 50
   include_empty_intervals: true
