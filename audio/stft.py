@@ -15,13 +15,14 @@ from audio.audio_processing import (
 class STFT(torch.nn.Module):
     """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
 
-    def __init__(self, filter_length, hop_length, win_length, window="hann"):
+    def __init__(self, filter_length, hop_length, win_length, device, window="hann"):
         super(STFT, self).__init__()
         self.filter_length = filter_length
         self.hop_length = hop_length
         self.win_length = win_length
         self.window = window
         self.forward_transform = None
+        self.device = device
         scale = self.filter_length / self.hop_length
         fourier_basis = np.fft.fft(np.eye(self.filter_length))
 
@@ -65,8 +66,8 @@ class STFT(torch.nn.Module):
         input_data = input_data.squeeze(1)
 
         forward_transform = F.conv1d(
-            input_data.cuda(),
-            torch.autograd.Variable(self.forward_basis, requires_grad=False).cuda(),
+            input_data.to(self.device),
+            torch.autograd.Variable(self.forward_basis, requires_grad=False).to(self.device),
             stride=self.hop_length,
             padding=0,
         ).cpu()
@@ -133,6 +134,7 @@ class TacotronSTFT(torch.nn.Module):
         filter_length,
         hop_length,
         win_length,
+        device,
         n_mel_channels,
         sampling_rate,
         mel_fmin,
@@ -141,7 +143,7 @@ class TacotronSTFT(torch.nn.Module):
         super(TacotronSTFT, self).__init__()
         self.n_mel_channels = n_mel_channels
         self.sampling_rate = sampling_rate
-        self.stft_fn = STFT(filter_length, hop_length, win_length)
+        self.stft_fn = STFT(filter_length, hop_length, win_length, device)
         mel_basis = librosa_mel_fn(
             sampling_rate, filter_length, n_mel_channels, mel_fmin, mel_fmax
         )

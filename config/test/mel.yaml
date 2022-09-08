@@ -1,0 +1,10 @@
+source_mel_directory: "/home/dadyatlova_1/dataset/LJSpeech-1.1/preprocessed_data/mel"
+source_wav_directory: "/home/dadyatlova_1/dataset/LJSpeech-1.1/mfa_data/aligned_corpus"
+preprocess_config_path: "/home/dadyatlova_1/FastSpeech2/config/LJSpeech/preprocess.yaml"
+test_filenames: ["LJ001-0002", "LJ001-0004", "LJ001-0006.wav", "LJ001-0009", "LJ001-0011"]
+sample_rate: 22050
+filter_length: 1024
+hop_length: 256
+win_length: 1024
+n_mels: 80
+device: "cpu"

@@ -86,9 +86,7 @@ class Encoder(nn.Module):
                 src_seq.device
             )
         else:
-            enc_output = self.src_word_emb(src_seq) + self.position_enc[
-                :, :max_len, :
-            ].expand(batch_size, -1, -1)
+            enc_output = self.src_word_emb(src_seq) + self.position_enc[:, :max_len, :].expand(batch_size, -1, -1)
 
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(
@@ -105,7 +103,6 @@ class Decoder(nn.Module):
 
     def __init__(self, config):
         super(Decoder, self).__init__()
-
         n_position = config["max_seq_len"] + 1
         d_word_vec = config["transformer"]["decoder_hidden"]
         n_layers = config["transformer"]["decoder_layer"]
@@ -146,25 +143,18 @@ class Decoder(nn.Module):
             # -- Prepare masks
             slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
             dec_output = enc_seq + get_sinusoid_encoding_table(
-                enc_seq.shape[1], self.d_model
-            )[: enc_seq.shape[1], :].unsqueeze(0).expand(batch_size, -1, -1).to(
-                enc_seq.device
-            )
+                enc_seq.shape[1],
+                self.d_model)[: enc_seq.shape[1], :].unsqueeze(0).expand(batch_size, -1, -1).to(enc_seq.device)
         else:
             max_len = min(max_len, self.max_seq_len)
 
             # -- Prepare masks
             slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
-            dec_output = enc_seq[:, :max_len, :] + self.position_enc[
-                :, :max_len, :
-            ].expand(batch_size, -1, -1)
+            dec_output = enc_seq[:, :max_len, :] + self.position_enc[:, :max_len, :].expand(batch_size, -1, -1)
             mask = mask[:, :max_len]
             slf_attn_mask = slf_attn_mask[:, :, :max_len]
-
-        for dec_layer in self.layer_stack:
-            dec_output, dec_slf_attn = dec_layer(
-                dec_output, mask=mask, slf_attn_mask=slf_attn_mask
-            )
+        for i, dec_layer in enumerate(self.layer_stack):
+            dec_output, dec_slf_attn = dec_layer(dec_output, mask=mask, slf_attn_mask=slf_attn_mask)
             if return_attns:
                 dec_slf_attn_list += [dec_slf_attn]
 

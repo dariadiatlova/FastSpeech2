@@ -1,25 +1,24 @@
 dataset: "LJSpeech"
 device: "cuda"
 path:
-  corpus_path: "/home/ming/Data/LJSpeech-1.1"
-  lexicon_path: "lexicon/librispeech-lexicon.txt"
-  raw_path: "/root/dasha/mfa_data/aligned_corpus"
-  preprocessed_path: "/root/dasha/mfa_data/preprocessed_data"
+  text_grids_path: "/root/storage/dasha/data/lj_mfa_data/TextGrids"
+  raw_path: "/root/storage/dasha/data/lj_mfa_data/wav16"
+  preprocessed_path: "/root/storage/dasha/data/lj_mfa_data/preprocessed16"
+  val_ids_path: "/root/storage/dasha/data/lj_mfa_data/lj16_val_paths.txt"
 
 preprocessing:
   include_empty_intervals: true
-  val_size: 512
+  val_size: 64
   device: "cuda"
   text:
-    text_cleaners: ["english_cleaners"]
     language: "en"
   audio:
-    sampling_rate: 22050
+    sampling_rate: 16000
     max_wav_value: 32768.0
   stft:
-    filter_length: 1024
-    hop_length: 256
-    win_length: 1024
+    filter_length: 512
+    hop_length: 128
+    win_length: 512
   mel:
     n_mel_channels: 80
     mel_fmin: 0

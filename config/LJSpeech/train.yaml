@@ -1,9 +1,13 @@
+seed: 8000
+device: "cuda"
 path:
-  ckpt_path: "./output/ckpt/LJSpeech"
-  log_path: "./output/log/LJSpeech"
-  result_path: "./output/result/LJSpeech"
+  ckpt_path: "/root/dasha/FastSpeech2/output"
+  log_path: "/root/dasha/FastSpeech2/output"
+  result_path: "/root/dasha/FastSpeech2/output"
+phones_mapping_path: "/root/dasha/mfa/phones_mapping.json"
+vocoder_path: "/root/andrey_b/DeepVKTTS/train/outputs/2022-05-20/13-39-44/hifiGan/LJ_generator.pt"
 optimizer:
-  batch_size: 16
+  batch_size: 64
   betas: [0.9, 0.98]
   eps: 0.000000001
   weight_decay: 0.0
@@ -13,8 +17,8 @@ optimizer:
   anneal_steps: [300000, 400000, 500000]
   anneal_rate: 0.3
 step:
-  total_step: 900000
+  total_step: 100000
   log_step: 100
   synth_step: 1000
   val_step: 1000
-  save_step: 100000
+  save_step: 10000

@@ -1,28 +1,21 @@
 import json
-import math
 import os
+from typing import Optional
 
 import numpy as np
 from torch.utils.data import Dataset
 
-from text import text_to_sequence
 from utils.tools import pad_1D, pad_2D
 
 
 class Dataset(Dataset):
-    def __init__(
-        self, filename, preprocess_config, train_config, sort=False, drop_last=False
-    ):
-        self.dataset_name = preprocess_config["dataset"]
+    def __init__(self, filename, preprocess_config, synthesis_size: Optional[int] = None, sort=False, drop_last=False):
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
-        self.cleaners = preprocess_config["preprocessing"]["text"]["text_cleaners"]
-        self.batch_size = train_config["optimizer"]["batch_size"]
-
-        self.basename, self.speaker, self.text, self.raw_text = self.process_meta(
-            filename
-        )
-        with open(os.path.join(self.preprocessed_path, "speakers.json")) as f:
-            self.speaker_map = json.load(f)
+        self.batch_size = preprocess_config["batch_size"]
+        self.synthesis_size = synthesis_size
+        self.basename, self.speaker, self.text, self.raw_text = self.process_meta(filename)
+        with open(preprocess_config["path"]["phones_mapping_path"], "r") as f:
+            self.phones_mapping = json.load(f)
         self.sort = sort
         self.drop_last = drop_last
 
@@ -31,52 +24,23 @@ class Dataset(Dataset):
 
     def __getitem__(self, idx):
         basename = self.basename[idx]
-        speaker = self.speaker[idx]
-        speaker_id = self.speaker_map[speaker]
         raw_text = self.raw_text[idx]
-        phone = np.array(text_to_sequence(self.text[idx], self.cleaners))
-        mel_path = os.path.join(
-            self.preprocessed_path,
-            "mel",
-            "{}-mel-{}.npy".format(speaker, basename),
-        )
-        mel = np.load(mel_path)
-        pitch_path = os.path.join(
-            self.preprocessed_path,
-            "pitch",
-            "{}-pitch-{}.npy".format(speaker, basename),
-        )
-        pitch = np.load(pitch_path)
-        energy_path = os.path.join(
-            self.preprocessed_path,
-            "energy",
-            "{}-energy-{}.npy".format(speaker, basename),
-        )
-        energy = np.load(energy_path)
-        duration_path = os.path.join(
-            self.preprocessed_path,
-            "duration",
-            "{}-duration-{}.npy".format(speaker, basename),
-        )
-        duration = np.load(duration_path)
+        phone = np.array([self.phones_mapping[i] for i in self.text[idx][1:-1].split(" ")])
+        mel = np.load(os.path.join(self.preprocessed_path, "mel", "{}-mel-{}.npy".format("0", basename)))
+        pitch = np.load(os.path.join(self.preprocessed_path, "pitch", "{}-pitch-{}.npy".format("0", basename)))
+        energy = np.load(os.path.join(self.preprocessed_path, "energy", "{}-energy-{}.npy".format("0", basename)))
+        duration = np.load(os.path.join(self.preprocessed_path, "duration", "{}-duration-{}.npy".format("0", basename)))
 
-        sample = {
-            "id": basename,
-            "speaker": speaker_id,
-            "text": phone,
-            "raw_text": raw_text,
-            "mel": mel,
-            "pitch": pitch,
-            "energy": energy,
-            "duration": duration,
-        }
+        assert duration.shape == phone.shape, f"Duration and phone shapes do not match. Phone shape {phone.shape}, " \
+                                              f"duration: {duration.shape} for sample: {self.basename[idx]}."
+
+        sample = {"id": basename, "speaker": "0", "text": phone, "raw_text": raw_text, "mel": mel,
+                  "pitch": pitch, "energy": energy, "duration": duration}
 
         return sample
 
     def process_meta(self, filename):
-        with open(
-            os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8") as f:
             name = []
             speaker = []
             text = []
@@ -109,20 +73,8 @@ class Dataset(Dataset):
         energies = pad_1D(energies)
         durations = pad_1D(durations)
 
-        return (
-            ids,
-            raw_texts,
-            speakers,
-            texts,
-            text_lens,
-            max(text_lens),
-            mels,
-            mel_lens,
-            max(mel_lens),
-            pitches,
-            energies,
-            durations,
-        )
+        return ids, raw_texts, speakers, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), pitches,\
+               energies, durations
 
     def collate_fn(self, data):
         data_size = len(data)
@@ -133,32 +85,29 @@ class Dataset(Dataset):
         else:
             idx_arr = np.arange(data_size)
 
-        tail = idx_arr[len(idx_arr) - (len(idx_arr) % self.batch_size) :]
+        tail = idx_arr[len(idx_arr) - (len(idx_arr) % self.batch_size):]
         idx_arr = idx_arr[: len(idx_arr) - (len(idx_arr) % self.batch_size)]
         idx_arr = idx_arr.reshape((-1, self.batch_size)).tolist()
         if not self.drop_last and len(tail) > 0:
             idx_arr += [tail.tolist()]
 
-        output = list()
-        for idx in idx_arr:
-            output.append(self.reprocess(data, idx))
+        output = [self.reprocess(data, idx) for idx in idx_arr]
 
         return output
 
 
 class TextDataset(Dataset):
-    def __init__(self, filepath, preprocess_config):
-        self.cleaners = preprocess_config["preprocessing"]["text"]["text_cleaners"]
+    def __init__(self, filepath, preprocess_config, train_config, filename):
+        super().__init__(filename, preprocess_config)
+        self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
+        with open(train_config["phones_mapping_path"], "r") as f:
+            self.phones_mapping = json.load(f)
 
-        self.basename, self.speaker, self.text, self.raw_text = self.process_meta(
-            filepath
-        )
-        with open(
-            os.path.join(
-                preprocess_config["path"]["preprocessed_path"], "speakers.json"
-            )
-        ) as f:
+        self.basename, self.speaker, self.text, self.raw_text = self.process_meta(filepath)
+        with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "speakers.json")) as f:
             self.speaker_map = json.load(f)
+        # change to the view: {"0": "LJ039-0161"}
+        self.speaker_map = dict(zip(list(self.speaker_map.values()), list(self.speaker_map.keys())))
 
     def __len__(self):
         return len(self.text)
@@ -166,14 +115,15 @@ class TextDataset(Dataset):
     def __getitem__(self, idx):
         basename = self.basename[idx]
         speaker = self.speaker[idx]
+        speaker = int(speaker)
         speaker_id = self.speaker_map[speaker]
         raw_text = self.raw_text[idx]
-        phone = np.array(text_to_sequence(self.text[idx], self.cleaners))
-
-        return (basename, speaker_id, phone, raw_text)
+        # phone = np.array(text_to_sequence(self.text[idx], self.cleaners))
+        phone = np.array([self.phones_mapping[i] for i in self.text[idx][1:-1].split(" ")])
+        return basename, speaker_id, phone, raw_text
 
     def process_meta(self, filename):
-        with open(filename, "r", encoding="utf-8") as f:
+        with open(os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8") as f:
             name = []
             speaker = []
             text = []
@@ -200,25 +150,17 @@ class TextDataset(Dataset):
 
 if __name__ == "__main__":
     # Test
-    import torch
     import yaml
     from torch.utils.data import DataLoader
     from utils.utils import to_device
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    preprocess_config = yaml.load(
-        open("./config/LJSpeech/preprocess.yaml", "r"), Loader=yaml.FullLoader
-    )
-    train_config = yaml.load(
-        open("./config/LJSpeech/train.yaml", "r"), Loader=yaml.FullLoader
-    )
+    preprocess_config = yaml.load(open("./config/LJSpeech/preprocess.yaml", "r"), Loader=yaml.FullLoader)
+    train_config = yaml.load(open("./config/LJSpeech/train.yaml", "r"), Loader=yaml.FullLoader)
+    device = train_config["device"]
 
-    train_dataset = Dataset(
-        "train.txt", preprocess_config, train_config, sort=True, drop_last=True
-    )
-    val_dataset = Dataset(
-        "val.txt", preprocess_config, train_config, sort=False, drop_last=False
-    )
+    train_dataset = Dataset("train.txt", preprocess_config, train_config, sort=True, drop_last=True)
+    val_dataset = Dataset("val.txt", preprocess_config, train_config, sort=False, drop_last=False)
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=train_config["optimizer"]["batch_size"] * 4,
@@ -237,19 +179,11 @@ if __name__ == "__main__":
         for batch in batchs:
             to_device(batch, device)
             n_batch += 1
-    print(
-        "Training set  with size {} is composed of {} batches.".format(
-            len(train_dataset), n_batch
-        )
-    )
+    print("Training set  with size {} is composed of {} batches.".format(len(train_dataset), n_batch))
 
     n_batch = 0
     for batchs in val_loader:
         for batch in batchs:
             to_device(batch, device)
             n_batch += 1
-    print(
-        "Validation set  with size {} is composed of {} batches.".format(
-            len(val_dataset), n_batch
-        )
-    )
+    print("Validation set  with size {} is composed of {} batches.".format(len(val_dataset), n_batch))
