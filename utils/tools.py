@@ -7,9 +7,24 @@ import numpy as np
 import matplotlib
 
 from matplotlib import pyplot as plt
+from typing import Dict
 
 
 matplotlib.use("Agg")
+
+
+def write_json(d: Dict, path: str) -> None:
+    with open(path, 'a') as f:
+        json.dump(d, f)
+        f.write("\n")
+
+
+def pad_or_trim_mel(mel: torch.Tensor, target_len: int, pad_idx: int = 0) -> torch.Tensor:
+    mel = mel.detach().cpu().transpose(0, 1)
+    if mel.shape[1] >= target_len:
+        return mel[:, :target_len]
+    else:
+        return F.pad(mel, (0, target_len - np.shape(mel)[0]), mode="constant", value=pad_idx)
 
 
 def torch_from_numpy(data):

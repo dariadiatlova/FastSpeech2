@@ -1,14 +1,14 @@
 dataset: "LJSpeech"
 device: "cuda"
 path:
-  text_grids_path: "/root/storage/dasha/data/emo-single-speaker/TextGrids"
+  text_grids_path: "/root/storage/dasha/data/emo-single-speaker/TextGrid"
   raw_path: "/root/storage/dasha/data/emo-single-speaker/wavs"
   preprocessed_path: "/root/storage/dasha/data/emo-single-speaker/preprocessed"
   val_ids_path: "/root/storage/dasha/data/emo-single-speaker/val_names.txt"
 
 preprocessing:
   include_empty_intervals: true
-  val_size: 135
+  val_size: 155
   device: "cuda"
   text:
     language: "en"

@@ -9,6 +9,7 @@ import pyworld as pw
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
+from scipy.io import wavfile
 
 import audio as Audio
 from audio.compute_mel import PAD_MEL_VALUE
@@ -244,19 +245,33 @@ class Preprocessor:
 
         # Save files
 
-        assert not np.isnan(duration).any(), f"{short_filename} sample duration contains nan"
+        if np.isnan(duration).any():
+            print(f"{short_filename} sample duration contains nan")
+            return
         dur_filename = f"{speaker_id}-duration-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "duration", dur_filename), duration)
 
-        assert not np.isnan(pitch).any(), f"{short_filename} sample pitch contains nan"
+        if np.isnan(pitch).any():
+            print(f"{short_filename} sample pitch contains nan")
+            os.remove(os.path.join(self.out_dir, "duration", dur_filename))
+            return
         pitch_filename = f"{speaker_id}-pitch-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "pitch", pitch_filename), pitch)
 
-        assert not np.isnan(energy).any(), f"{short_filename} sample energy contains nan"
+        if np.isnan(energy).any():
+            print(f"{short_filename} sample energy contains nan")
+            os.remove(os.path.join(self.out_dir, "duration", dur_filename))
+            os.remove(os.path.join(self.out_dir, "pitch", pitch_filename))
+            return
         energy_filename = f"{speaker_id}-energy-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "energy", energy_filename), energy)
 
-        assert not np.isnan(mel_spectrogram).any(), f"{short_filename} sample mel_spectrogram contains nan"
+        if np.isnan(mel_spectrogram).any():
+            print(f"{short_filename} sample mel_spectrogram contains nan")
+            os.remove(os.path.join(self.out_dir, "duration", dur_filename))
+            os.remove(os.path.join(self.out_dir, "pitch", pitch_filename))
+            os.remove(os.path.join(self.out_dir, "energy", energy_filename))
+            return
         mel_filename = f"{speaker_id}-mel-{file_id}-{emotion_id}.npy"
         np.save(os.path.join(self.out_dir, "mel", mel_filename), mel_spectrogram.T)
 

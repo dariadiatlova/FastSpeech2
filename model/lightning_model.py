@@ -1,13 +1,14 @@
 from typing import Dict
 
 import numpy as np
+import os
 import torch
 import torchaudio
 import wandb
 from pytorch_lightning import LightningModule
-
+from tqdm import tqdm
 from model import FastSpeech2, FastSpeech2Loss
-from utils.tools import synthesize_predicted_wav, torch_from_numpy, synthesize_from_gt_mel
+from utils.tools import synthesize_predicted_wav, torch_from_numpy, synthesize_from_gt_mel, pad_or_trim_mel, write_json
 
 
 class FastSpeechLightning(LightningModule):
@@ -58,6 +59,25 @@ class FastSpeechLightning(LightningModule):
                         f"optimizer_rate/optimizer": self.optimizer.param_groups[0]['lr']}
         self.log_dict(gen_log_dict, on_step=True, on_epoch=False)
         return total_loss
+
+    def generate_mels(self, loader, post_processed_path, vocoder_json_path):
+        for batch in loader:
+            batch = torch_from_numpy(batch[0])
+            ids, _, speakers, emotions, texts, text_lens, max_src_lens, _, mel_lens = batch[:9]
+            batch_output = self.model(self.device, speakers=speakers, emotions=emotions, texts=texts,
+                                      src_lens=text_lens, max_src_len=max_src_lens)
+            postnet_mel_predictions = batch_output[1]
+            mel_lens = batch[8]
+            for i, mel, in enumerate(postnet_mel_predictions):
+                predicted_mel = pad_or_trim_mel(mel, mel_lens[i])
+                wav_path = f"{self.ground_truth_audio_path}/{ids[i]}.wav"
+                mel_path = f"{post_processed_path}/{ids[i]}.pt"
+                if os.path.exists(wav_path):
+                    dict_to_write = {"audio_filepath": wav_path, "mel_filepath": mel_path, "duration": None}
+                    write_json(dict_to_write, vocoder_json_path)
+                    torch.save(predicted_mel, mel_path)
+                else:
+                    print(f"Ooops {wav_path} not found :(")
 
     def forward(self, basenames, speakers, texts, text_lens, max_text_lens):
         predictions = self.model(self.device,
