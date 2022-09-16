@@ -1,8 +1,14 @@
 seed: 8000
 n_gpus: 1
-checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/vctk16/pyw/epoch=730-step=500000.ckpt"
+checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/esd/lpips_vctk_finetune_step=200000.ckpt"
 vocoder_path: "/root/storage/dasha/saved_models/hifi_torchscript/vctk_esd/HiFi--val_loss=0.1967-epoch=4549.pt"
 filepath: null
+
+postprocessing:
+  device: "cuda"
+  output_mel_dir: "/root/storage/dasha/data/emo-data/postprocessed"
+  vocoder_json_dirpath: "/root/storage/dasha/data/emo-data/vocoder_configs"
+
 wandb:
   gt_audio_directory_path: "/root/storage/dasha/data/emo-data/english_esd/preprocessed/trimmed_wav"
   save_dir: null

@@ -1,10 +1,17 @@
 seed: 8000
 n_gpus: 1
-checkpoint_path: null
+
+checkpoint_path: "/root/storage/dasha/saved_models/fastspeech/esd/lpips_vctk_finetune_step=200000.ckpt"
 vocoder_path: "/root/storage/dasha/repos/EmoNeMo/examples/tts/nemo_experiments/HifiGan/save/vocoder_esd_3000.pt"
 filepath: null
+
+postprocessing:
+  device: "cuda"
+  output_mel_dir: "/root/storage/dasha/data/emo-single-speaker/postprocessed"
+  vocoder_config_path: "/root/storage/dasha/data/emo-single-speaker/train_manifest.json"
+
 wandb:
-  gt_audio_directory_path: "/root/storage/dasha/data/emo-data/clean/wavs"
+  gt_audio_directory_path: "/root/storage/dasha/data/emo-data/english_esd/wavs"
   save_dir: null
   progress_bar_refresh_rate: 1
   checkpoint_directory: null
