@@ -77,7 +77,8 @@ class FastSpeechLightning(LightningModule):
     def validation_step(self, batch, batch_idx):
         batch = torch_from_numpy(batch[0])
         speakers, texts, text_lens, max_src_len = batch[2:6]
-        gt_mel, gt_mel_lens = batch[6:8]
+        gt_mel, gt_mel_lens, gt_max_mel_len = batch[6:9]
+        gt_durations = batch[-1]
         basenames = batch[0]
         predictions = self.model(device=self.device,
                                  speakers=speakers.to(self.device),
@@ -85,12 +86,35 @@ class FastSpeechLightning(LightningModule):
                                  src_lens=text_lens.to(self.device),
                                  max_src_len=max_src_len)
 
+        pitch_loss, energy_loss, duration_loss, cwt_loss = self.loss(self.device, batch, predictions, compute_mel_loss=False)
+
+        validation_predictions = self.model(device=self.device,
+                                            speakers=speakers.to(self.device),
+                                            texts=texts.to(self.device),
+                                            src_lens=text_lens.to(self.device),
+                                            max_src_len=max_src_len,
+                                            mel_lens=gt_mel_lens.to(self.device),
+                                            max_mel_len=gt_max_mel_len,
+                                            d_targets=gt_durations.to(self.device))
+
+        total_loss, mel_loss, postnet_mel_loss = self.loss(self.device, batch, validation_predictions)[:3]
+
+        gen_log_dict = {f"val_loss/total_loss": total_loss,
+                        f"val_loss/mel_loss": mel_loss,
+                        f"val_loss/postnet_mel_loss": postnet_mel_loss,
+                        f"val_loss/pitch_loss": pitch_loss,
+                        f"val_loss/cwt_loss": cwt_loss,
+                        f"val_loss/energy_loss": energy_loss,
+                        f"val_loss/duration_loss": duration_loss}
+
+        self.log_dict(gen_log_dict, on_step=True, on_epoch=False)
+
         for i, tag in enumerate(basenames):
             synthesized_wav = synthesize_predicted_wav(i, predictions, self.vocoder)
 
             self.logger.experiment.log(
-                {f"Validation_audio/predicted_{i}": wandb.Audio(
-                    synthesized_wav, caption=f"generated_{i}", sample_rate=self.sampling_rate)}
+                {f"Predicted_audio/{tag}": wandb.Audio(
+                    synthesized_wav, caption=f"generated_{tag}", sample_rate=self.sampling_rate)}
             )
 
             if self.global_step == 0:
@@ -102,11 +126,11 @@ class FastSpeechLightning(LightningModule):
                 ground_truth_wav = ground_truth_wav.squeeze(0)
 
                 self.logger.experiment.log(
-                        {f"Validation_audio/original{i}": wandb.Audio(
-                            ground_truth_wav, caption=f"original_{i}", sample_rate=self.sampling_rate)}
+                        {f"Original_audio/{tag}": wandb.Audio(
+                            ground_truth_wav, caption=f"original_{tag}", sample_rate=self.sampling_rate)}
                     )
 
                 self.logger.experiment.log(
-                    {f"Reconstructed_audio/reconstructed_{i}": wandb.Audio(
-                        vocoder_synthesized_from_gt, caption=f"reconstructed_{i}", sample_rate=self.sampling_rate)}
+                    {f"Reconstructed_audio/{tag}": wandb.Audio(
+                        vocoder_synthesized_from_gt, caption=f"reconstructed_{tag}", sample_rate=self.sampling_rate)}
                 )

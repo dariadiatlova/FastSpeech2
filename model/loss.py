@@ -13,9 +13,9 @@ class FastSpeech2Loss(nn.Module):
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
 
-    def forward(self, device, inputs, predictions):
+    def forward(self, device, inputs, predictions, compute_mel_loss: bool = True):
         mel_targets = inputs[6]
-        cwt_targets, pitch_targets, energy_targets, duration_targets = inputs[9:]
+        cwt_targets, pitch_targets, pitch_means, pitch_stds, energy_targets, duration_targets = inputs[9:]
         mel_predictions = predictions[0]
         postnet_mel_predictions, cwt_predictions, pitch_predictions, energy_predictions, log_duration_predictions = predictions[1:6]
         src_masks, mel_masks = predictions[7:9]
@@ -60,16 +60,19 @@ class FastSpeech2Loss(nn.Module):
         log_duration_predictions = log_duration_predictions.masked_select(src_masks)
         log_duration_targets = log_duration_targets.masked_select(src_masks)
 
+        pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
+        energy_loss = self.mse_loss(energy_predictions, energy_targets)
+        duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
+        cwt_loss = self.mse_loss(cwt_predictions, cwt_targets)
+
+        if not compute_mel_loss:
+            return pitch_loss, energy_loss, duration_loss, cwt_loss
+
         mel_predictions = mel_predictions.masked_select(mel_masks.unsqueeze(-1)) # b, t, 1 -> b, t, c
         postnet_mel_predictions = postnet_mel_predictions.masked_select(mel_masks.unsqueeze(-1))
         mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
         mel_loss = self.mae_loss(mel_predictions, mel_targets)
         postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
-
-        pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
-        energy_loss = self.mse_loss(energy_predictions, energy_targets)
-        duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
-        cwt_loss = self.mse_loss(cwt_predictions, cwt_targets)
 
         total_loss = mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss + cwt_loss
 
