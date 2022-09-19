@@ -48,11 +48,14 @@ class FastSpeechLightning(LightningModule):
         return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     def _shared_step(self, input, output):
-        total_loss, mel_loss, postnet_mel_loss, pitch_loss, energy_loss, duration_loss, cwt_loss = self.loss(self.device, input, output)
+        total_loss, mel_loss, postnet_mel_loss, pitch_loss, energy_loss, duration_loss, cwt_loss, \
+        pitch_mean_loss, pitch_std_loss = self.loss(self.device, input, output)
         gen_log_dict = {f"train_loss/total_loss": total_loss,
                         f"train_loss/mel_loss": mel_loss,
                         f"train_loss/postnet_mel_loss": postnet_mel_loss,
                         f"train_loss/pitch_loss": pitch_loss,
+                        f"val_loss/pitch_mean_loss": pitch_mean_loss,
+                        f"val_loss/pitch_std_loss": pitch_std_loss,
                         f"train_loss/energy_loss": energy_loss,
                         f"train_loss/duration_loss": duration_loss,
                         f"train_loss/cwt_loss": cwt_loss,
@@ -86,7 +89,8 @@ class FastSpeechLightning(LightningModule):
                                  src_lens=text_lens.to(self.device),
                                  max_src_len=max_src_len)
 
-        pitch_loss, energy_loss, duration_loss, cwt_loss = self.loss(self.device, batch, predictions, compute_mel_loss=False)
+        pitch_loss, energy_loss, duration_loss, cwt_loss, pitch_mean_loss, pitch_std_loss = self.loss(
+            self.device, batch, predictions, compute_mel_loss=False)
 
         validation_predictions = self.model(device=self.device,
                                             speakers=speakers.to(self.device),
@@ -104,6 +108,8 @@ class FastSpeechLightning(LightningModule):
                         f"val_loss/postnet_mel_loss": postnet_mel_loss,
                         f"val_loss/pitch_loss": pitch_loss,
                         f"val_loss/cwt_loss": cwt_loss,
+                        f"val_loss/pitch_mean_loss": pitch_mean_loss,
+                        f"val_loss/pitch_std_loss": pitch_std_loss,
                         f"val_loss/energy_loss": energy_loss,
                         f"val_loss/duration_loss": duration_loss}
 

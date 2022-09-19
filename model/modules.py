@@ -54,14 +54,14 @@ class VarianceAdaptor(nn.Module):
         self.energy_embedding = nn.Embedding(n_bins, model_config["transformer"]["encoder_hidden"])
 
     def get_pitch_embedding(self, device, x, target, mask, control):
-        pitch_prediction, cwt = self.pitch_predictor(x, mask)
+        pitch_prediction, cwt, means, stds = self.pitch_predictor(x, mask)
         self.pitch_embedding.to(device)
         if target is not None:
             embedding = self.pitch_embedding(torch.bucketize(target.to(device), self.pitch_bins.to(device)))
         else:
             pitch_prediction = pitch_prediction * control
             embedding = self.pitch_embedding(torch.bucketize(pitch_prediction.to(device), self.pitch_bins.to(device)))
-        return pitch_prediction, cwt, embedding
+        return pitch_prediction, cwt, embedding, means, stds
 
     def get_energy_embedding(self, device, x, target, mask, control):
         prediction = self.energy_predictor(x, mask)
@@ -69,12 +69,7 @@ class VarianceAdaptor(nn.Module):
             embedding = self.energy_embedding(torch.bucketize(target.to(device), self.energy_bins.to(device)))
         else:
             prediction = prediction * control
-            # try:
             embedding = self.energy_embedding(torch.bucketize(prediction.to(device), self.energy_bins.to(device)))
-            # except Exception:
-            #     print(f"Couldn't put on device:")
-            #     print(f"prediction: {prediction}")
-            #     print(f"energy bins: {self.energy_bins}")
         return prediction, embedding
 
     def forward(self, device, x, src_mask, mel_mask=None, max_len=None, pitch_target=None, p_mean=None, p_std=None,
@@ -82,7 +77,7 @@ class VarianceAdaptor(nn.Module):
 
         log_duration_prediction = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
-            pitch_prediction, cwt, pitch_embedding = self.get_pitch_embedding(
+            pitch_prediction, cwt, pitch_embedding, pitch_means, pitch_stds = self.get_pitch_embedding(
                 device, x, pitch_target, src_mask, p_control)
             x = x + pitch_embedding
         if self.energy_feature_level == "phoneme_level":
@@ -104,7 +99,7 @@ class VarianceAdaptor(nn.Module):
             energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, mel_mask, p_control)
             x = x + energy_embedding
 
-        return x, cwt, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask
+        return x, cwt, pitch_prediction, energy_prediction, log_duration_prediction, duration_rounded, mel_len, mel_mask, pitch_means, pitch_stds
 
 
 class LengthRegulator(nn.Module):
@@ -240,7 +235,7 @@ class PitchPredictor(nn.Module):
                     requires_grad=True).to(means.device.type) + means[i] * stds[i])
             pitch = torch.stack(batch)
 
-        return pitch, out
+        return pitch, out, means, stds
 
 
 class Conv(nn.Module):

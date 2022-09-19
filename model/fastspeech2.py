@@ -39,7 +39,8 @@ class FastSpeech2(nn.Module):
             output = output + self.speaker_emb(speakers).unsqueeze(1).expand(-1, max_src_len, -1)
         var_adaptor_output = self.variance_adaptor(device, output, src_masks, mel_masks, max_mel_len, p_targets,
                                                    p_means, p_stds, e_targets, d_targets, p_control, d_control)
-        output, cwt_prediction, p_predictions, e_predictions, log_d_predictions, d_rounded, mel_lens, mel_masks = var_adaptor_output
+        output, cwt_prediction, p_predictions, e_predictions, log_d_predictions, d_rounded, mel_lens, \
+        mel_masks, pitch_means, pitch_stds = var_adaptor_output
 
         output, mel_masks = self.decoder(output, mel_masks)
         output = self.mel_linear(output)
@@ -48,4 +49,4 @@ class FastSpeech2(nn.Module):
                                                f"found target: {mels.shape}, output: {output.shape}."
         postnet_output = self.postnet(output) + output
         return output, postnet_output, cwt_prediction, p_predictions, e_predictions, log_d_predictions, d_rounded,\
-               src_masks, mel_masks, src_lens, mel_lens
+               src_masks, mel_masks, src_lens, mel_lens, pitch_means, pitch_stds
