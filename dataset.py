@@ -29,14 +29,17 @@ class Dataset(Dataset):
         mel = np.load(os.path.join(self.preprocessed_path, "mel", "{}-mel-{}.npy".format("0", basename)))
         cwt = np.load(os.path.join(self.preprocessed_path, "cwt", "{}-pitch-{}.npy".format("0", basename)))
         pitch = np.load(os.path.join(self.preprocessed_path, "reconstructed_pitch", "{}-pitch-{}.npy".format("0", basename)))
+        pitch_mean = np.load(os.path.join(self.preprocessed_path, "pitch_stats", "{}-pitch-{}.npy".format("0", basename)))[0]
+        pitch_std = np.load(os.path.join(self.preprocessed_path, "pitch_stats", "{}-pitch-{}.npy".format("0", basename)))[1]
         energy = np.load(os.path.join(self.preprocessed_path, "energy", "{}-energy-{}.npy".format("0", basename)))
         duration = np.load(os.path.join(self.preprocessed_path, "duration", "{}-duration-{}.npy".format("0", basename)))
 
         assert duration.shape == phone.shape, f"Duration and phone shapes do not match. Phone shape {phone.shape}, " \
                                               f"duration: {duration.shape} for sample: {self.basename[idx]}."
 
-        sample = {"id": basename, "speaker": "0", "text": phone, "raw_text": raw_text, "mel": mel,
-                  "cwt": cwt, "pitch": pitch, "energy": energy, "duration": duration}
+        sample = {"id": basename, "speaker": "0", "text": phone, "raw_text": raw_text,
+                  "mel": mel, "cwt": cwt, "pitch": pitch, "pitch_mean": pitch_mean,
+                  "pitch_std": pitch_std, "energy": energy, "duration": duration}
 
         return sample
 
@@ -61,6 +64,8 @@ class Dataset(Dataset):
         raw_texts = [data[idx]["raw_text"] for idx in idxs]
         mels = [data[idx]["mel"] for idx in idxs]
         pitches = [data[idx]["pitch"] for idx in idxs]
+        pitch_means = [data[idx]["pitch_mean"] for idx in idxs]
+        pitch_stds = [data[idx]["pitch_std"] for idx in idxs]
         cwt = [np.concatenate([data[idx]["cwt"].real, data[idx]["cwt"].imag], axis=0) for idx in idxs]
         energies = [data[idx]["energy"] for idx in idxs]
         durations = [data[idx]["duration"] for idx in idxs]
@@ -69,6 +74,8 @@ class Dataset(Dataset):
         mel_lens = np.array([mel.shape[0] for mel in mels])
 
         speakers = np.array(speakers)
+        pitch_means = np.array(pitch_means)
+        pitch_stds = np.array(pitch_stds)
 
         texts = pad_1D(texts)
         mels = pad_2D(mels)
@@ -78,7 +85,7 @@ class Dataset(Dataset):
         durations = pad_1D(durations)
 
         return ids, raw_texts, speakers, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), \
-               cwt, pitches, energies, durations
+               cwt, pitches, pitch_means, pitch_stds, energies, durations
 
     def collate_fn(self, data):
         data_size = len(data)

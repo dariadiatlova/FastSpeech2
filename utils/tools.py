@@ -25,6 +25,23 @@ def get_pitch_from_pitch_spec(pitch_spec):
 
 
 def torch_from_numpy(data):
+    if len(data) == 15:
+        ids, raw_texts, speakers, texts, src_lens, max_src_len = data[:6]
+        mels, mel_lens, max_mel_len, cwt, pitches, pitch_means, pitch_stds, energies, durations = data[6:]
+        speakers = torch.from_numpy(np.zeros(len(speakers))).long()
+        texts = torch.from_numpy(texts).long()
+        src_lens = torch.from_numpy(src_lens)
+        mels = torch.from_numpy(mels).float()
+        mel_lens = torch.from_numpy(mel_lens)
+        pitches = torch.from_numpy(pitches).float()
+        pitch_means = torch.from_numpy(pitch_means).float()
+        pitch_stds = torch.from_numpy(pitch_stds).float()
+        cwt = torch.from_numpy(cwt).float()
+        energies = torch.from_numpy(energies)
+        durations = torch.from_numpy(durations).long()
+        return ids, raw_texts, speakers, texts, src_lens, max_src_len, mels, \
+               mel_lens, max_mel_len, cwt, pitches, pitch_means, pitch_stds, energies, durations
+
     if len(data) == 13:
         ids, raw_texts, speakers, texts, src_lens, max_src_len = data[:6]
         mels, mel_lens, max_mel_len, cwt, pitches, energies, durations = data[6:]

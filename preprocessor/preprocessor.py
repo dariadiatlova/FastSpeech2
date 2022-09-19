@@ -10,6 +10,7 @@ from scipy.interpolate import interp1d
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from ssqueezepy import cwt, icwt
+from scipy.io import wavfile
 
 import audio as Audio
 from audio.compute_mel import PAD_MEL_VALUE
@@ -51,18 +52,20 @@ class Preprocessor:
         )
 
     def build_from_path(self):
+        os.makedirs((os.path.join(self.out_dir, "trimmed_wav")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "mel")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "cwt")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "reconstructed_pitch")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "energy")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "pitch")), exist_ok=True)
         os.makedirs((os.path.join(self.out_dir, "duration")), exist_ok=True)
+        os.makedirs((os.path.join(self.out_dir, "pitch_stats")), exist_ok=True)
 
         print("Processing Data ...")
         out = list()
         n_frames = 0
         energy_scaler = StandardScaler()
-        pitch_scaler = StandardScaler()
+
         # Compute pitch, energy, duration, and mel-spectrogram
         for filename in tqdm(os.listdir(self.text_grids_dir)):
             if ".TextGrid" not in filename:
@@ -80,42 +83,28 @@ class Preprocessor:
                     info, energy, pitch, n = ret
                     out.append(info)
 
-                    if len(pitch) > 0:
-                        pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
-
                     if len(energy) > 0:
                         energy_scaler.partial_fit(energy.reshape((-1, 1)))
 
                     n_frames += n
 
         print("Computing statistic quantities ...")
-        # Perform normalization if necessary
-        if self.energy_normalization:
-            energy_mean = energy_scaler.mean_[0]
-            energy_std = energy_scaler.scale_[0]
-        else:
-            energy_mean = 0
-            energy_std = 1
 
-        if self.pitch_normalization:
-            pitch_mean = pitch_scaler.mean_[0]
-            pitch_std = pitch_scaler.scale_[0]
-        else:
-            pitch_mean = 0
-            pitch_std = 1
+        energy_mean = energy_scaler.mean_[0]
+        energy_std = energy_scaler.scale_[0]
 
-        energy_min, energy_max, norm_e_mean, norm_e_std = self.normalize(os.path.join(self.out_dir, "energy"), energy_mean, energy_std)
-        pitch_min, pitch_max, norm_p_mean, norm_p_std = self.normalize(os.path.join(self.out_dir, "pitch"), pitch_mean, pitch_std)
+        energy_min, energy_max = self.normalize(os.path.join(self.out_dir, "energy"),
+                                                os.path.join(self.out_dir, "energy_stats"),
+                                                mean=energy_mean,
+                                                std=energy_std)
+        pitch_min, pitch_max = self.normalize(os.path.join(self.out_dir, "pitch"),
+                                              os.path.join(self.out_dir, "pitch_stats"),
+                                              save_stats=True)
 
         # Save files
-
         with open(os.path.join(self.out_dir, "stats.json"), "w") as f:
-            stats = {
-                "energy": [float(energy_min), float(energy_max), float(energy_mean),
-                           float(energy_std), float(norm_e_mean), float(norm_e_std)],
-                "pitch": [float(pitch_min), float(pitch_max), float(pitch_mean),
-                          float(pitch_std), float(norm_p_mean), float(norm_p_std)]
-            }
+            stats = {"energy": [float(energy_min), float(energy_max), float(energy_mean), float(energy_std)],
+                     "pitch": [float(pitch_min), float(pitch_max)]}
             f.write(json.dumps(stats))
 
         # Save CWT & Reconstructed Pitch values
@@ -129,7 +118,9 @@ class Preprocessor:
             np.save(cwt_filename, pitch_spectrogram)
 
             reconstructed_pitch = icwt(pitch_spectrogram, wavelet="cmhat", scales=scales)
-            np.save(rec_pitch_filename, reconstructed_pitch)
+            mean, std = np.load(os.path.join(self.out_dir, "pitch_stats", filename))
+            denormalized_reconstructed_pitch = reconstructed_pitch * std + mean
+            np.save(rec_pitch_filename, denormalized_reconstructed_pitch)
 
         print("Total time: {} hours".format(n_frames * self.hop_length / self.sampling_rate / 3600))
         random.shuffle(out)
@@ -173,17 +164,16 @@ class Preprocessor:
         # Read and trim wav files
         wav, _ = librosa.load(wav_path, sr=self.sampling_rate)
         wav = wav[int(self.sampling_rate * start):int(self.sampling_rate * end)].astype(np.float32)
+        trimmed_wav_filename = os.path.join(self.out_dir, "trimmed_wav", f"{short_filename}.wav")
+        wavfile.write(trimmed_wav_filename, self.sampling_rate, wav)
 
         # Read raw text
         with open(text_path, "r") as f:
             raw_text = f.readline().strip("\n")
 
         # Compute fundamental frequency
-        pitch, t = pw.dio(
-            wav.astype(np.float64),
-            self.sampling_rate,
-            frame_period=self.hop_length / self.sampling_rate * 1000,
-        )
+        pitch, t = pw.dio(wav.astype(np.float64), self.sampling_rate,
+                          frame_period=self.hop_length / self.sampling_rate * 1000)
         pitch = pw.stonemask(wav.astype(np.float64), pitch, t, self.sampling_rate)
 
         # Compute mel-scale spectrogram and energy
@@ -210,6 +200,9 @@ class Preprocessor:
             mel_spectrogram = np.pad(mel_spectrogram,
                                      ((0, 0), (0, duration_sum - mel_count)),
                                      mode="constant", constant_values=PAD_MEL_VALUE)
+        if mel_count - duration_sum == 1:
+            mel_spectrogram = mel_spectrogram[:, :duration_sum]
+
         mel_count = mel_spectrogram.shape[1]
 
         assert mel_count == duration_sum, f"Mels and durations mismatch, mel count: {mel_count}, " \
@@ -276,7 +269,7 @@ class Preprocessor:
         )
 
     def get_alignment(self, tier):
-        sil_phones = ["sil", "sp", "spn"]
+        sil_phones = ["sil", "sp", "spn", ""]
 
         phones = []
         durations = []
@@ -324,16 +317,22 @@ class Preprocessor:
 
         return values[normal_indices]
 
-    def normalize(self, in_dir, mean, std):
+    def normalize(self, in_dir, out_dir, mean=None, std=None, save_stats=False):
         max_value = np.finfo(np.float64).min
         min_value = np.finfo(np.float64).max
-        norm_values_scaler = StandardScaler()
         for filename in os.listdir(in_dir):
-            filename = os.path.join(in_dir, filename)
-            values = (np.load(filename) - mean) / std
-            norm_values_scaler.partial_fit(values.reshape((-1, 1)))
-            np.save(filename, values)
+            full_filename = os.path.join(in_dir, filename)
+            values = np.load(full_filename)
+            stats_filename = os.path.join(out_dir, filename)
+            # if norm each utterance to zero mean and std
+            if save_stats:
+                mean = np.mean(values)
+                std = np.std(values)
+                assert mean is not None and std is not None, f"{full_filename} contains None in std or mean values :("
+                np.save(stats_filename, np.array([mean, std]))
+            normed_values = (values - mean) / std
+            np.save(full_filename, normed_values)
             max_value = max(max_value, max(values))
             min_value = min(min_value, min(values))
 
-        return min_value, max_value, norm_values_scaler.mean_[0], norm_values_scaler.scale_[0]
+        return min_value, max_value

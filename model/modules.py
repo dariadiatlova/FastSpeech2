@@ -24,7 +24,6 @@ class VarianceAdaptor(nn.Module):
         self.length_regulator = LengthRegulator(preprocess_config["device"])
         self.pitch_predictor = PitchPredictor(model_config)
         self.energy_predictor = VariancePredictor(model_config)
-
         self.device = preprocess_config["device"]
         self.pitch_feature_level = preprocess_config["pitch"]["feature"]
         self.energy_feature_level = preprocess_config["energy"]["feature"]
@@ -70,15 +69,21 @@ class VarianceAdaptor(nn.Module):
             embedding = self.energy_embedding(torch.bucketize(target.to(device), self.energy_bins.to(device)))
         else:
             prediction = prediction * control
+            # try:
             embedding = self.energy_embedding(torch.bucketize(prediction.to(device), self.energy_bins.to(device)))
+            # except Exception:
+            #     print(f"Couldn't put on device:")
+            #     print(f"prediction: {prediction}")
+            #     print(f"energy bins: {self.energy_bins}")
         return prediction, embedding
 
-    def forward(self, device, x, src_mask, mel_mask=None, max_len=None, pitch_target=None, energy_target=None,
-                duration_target=None, p_control=1.0, d_control=1.0):
+    def forward(self, device, x, src_mask, mel_mask=None, max_len=None, pitch_target=None, p_mean=None, p_std=None,
+                energy_target=None, duration_target=None, p_control=1.0, d_control=1.0):
 
         log_duration_prediction = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
-            pitch_prediction, cwt, pitch_embedding = self.get_pitch_embedding(device, x, pitch_target, src_mask, p_control)
+            pitch_prediction, cwt, pitch_embedding = self.get_pitch_embedding(
+                device, x, pitch_target, src_mask, p_control)
             x = x + pitch_embedding
         if self.energy_feature_level == "phoneme_level":
             energy_prediction, energy_embedding = self.get_energy_embedding(device, x, energy_target, src_mask, p_control)
@@ -193,6 +198,12 @@ class PitchPredictor(nn.Module):
         self.scale = model_config["variance_predictor"]["scale"]
         self.scales = np.array(list(range(1, self.scale + 1))).astype(np.float32)
 
+        self.stats_conv_layer = Conv(self.input_size,
+                                     self.filter_size,
+                                     kernel_size=self.kernel,
+                                     padding=(self.kernel - 1) // 2)
+        self.stats_linear_layer = nn.Linear(self.conv_output_size, 2)
+
         self.conv_layer = nn.Sequential(
             OrderedDict(
                 [
@@ -208,21 +219,25 @@ class PitchPredictor(nn.Module):
                 ]
             )
         )
+
         self.linear_layer = nn.Linear(self.conv_output_size, self.scale * 2)
 
     def forward(self, encoder_output, mask):
         out = self.linear_layer(self.conv_layer(encoder_output)).permute(0, 2, 1)
+        stats = self.stats_linear_layer(torch.mean(self.stats_conv_layer(encoder_output), dim=1))
         bs = out.shape[0]
 
         if mask is not None:
             mask = mask.unsqueeze(1).expand(-1, self.scale * 2, -1)
             out = out.masked_fill(mask, 0.0)
             cwt_batch = torch.complex(out[:, :self.scale, :], out[:, self.scale:, :])
+            means = stats[:, 0]
+            stds = stats[:, 1]
             batch = []
             for i in range(bs):
                 batch.append(torch.tensor(
                     icwt(cwt_batch.detach().cpu().numpy()[i, :, :], wavelet="cmhat", scales=self.scales),
-                    requires_grad=True))
+                    requires_grad=True).to(means.device.type) + means[i] * stds[i])
             pitch = torch.stack(batch)
 
         return pitch, out

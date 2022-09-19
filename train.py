@@ -29,12 +29,11 @@ def train(cfg) -> None:
                       log_every_n_steps=cfg.wandb.log_every_n_steps,
                       logger=wandb_logger,
                       gpus=cfg.n_gpus,
-                      callbacks=[callbacks, progress_bar],
-                      strategy="ddp")
+                      callbacks=[callbacks, progress_bar])
 
     train_loader = get_dataloader(config=cfg.preprocess, train=True)
     synthesis_loader = get_dataloader(config=cfg.preprocess, train=False)
-    assert len(synthesis_loader) == 2, f"Val loader size: {len(synthesis_loader)}, only 2 batches will be logged."
+    assert len(synthesis_loader) <= 2, f"Val loader size: {len(synthesis_loader)}, only 2 batches will be logged."
     model = FastSpeechLightning(cfg)
     if cfg.checkpoint_path is not None:
         model = model.load_from_checkpoint(checkpoint_path=cfg.checkpoint_path, config=cfg)
