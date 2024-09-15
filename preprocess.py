@@ -11,5 +11,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.FullLoader)
+
     preprocessor = Preprocessor(config)
     preprocessor.build_from_path()

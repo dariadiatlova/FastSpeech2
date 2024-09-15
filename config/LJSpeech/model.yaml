@@ -29,7 +29,7 @@ variance_embedding:
 #   attn_head: 4
 
 multi_speaker: False
-
+device: "cuda"
 max_seq_len: 1000
 
 vocoder:

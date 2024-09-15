@@ -7,12 +7,8 @@ class FastSpeech2Loss(nn.Module):
 
     def __init__(self, preprocess_config, model_config):
         super(FastSpeech2Loss, self).__init__()
-        self.pitch_feature_level = preprocess_config["preprocessing"]["pitch"][
-            "feature"
-        ]
-        self.energy_feature_level = preprocess_config["preprocessing"]["energy"][
-            "feature"
-        ]
+        self.pitch_feature_level = preprocess_config["preprocessing"]["pitch"]["feature"]
+        self.energy_feature_level = preprocess_config["preprocessing"]["energy"]["feature"]
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
 
@@ -65,12 +61,9 @@ class FastSpeech2Loss(nn.Module):
         log_duration_predictions = log_duration_predictions.masked_select(src_masks)
         log_duration_targets = log_duration_targets.masked_select(src_masks)
 
-        mel_predictions = mel_predictions.masked_select(mel_masks.unsqueeze(-1))
-        postnet_mel_predictions = postnet_mel_predictions.masked_select(
-            mel_masks.unsqueeze(-1)
-        )
+        mel_predictions = mel_predictions.masked_select(mel_masks.unsqueeze(-1)) # b, t, 1 -> b, t, c
+        postnet_mel_predictions = postnet_mel_predictions.masked_select(mel_masks.unsqueeze(-1))
         mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
-
         mel_loss = self.mae_loss(mel_predictions, mel_targets)
         postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
 
@@ -78,9 +71,7 @@ class FastSpeech2Loss(nn.Module):
         energy_loss = self.mse_loss(energy_predictions, energy_targets)
         duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
 
-        total_loss = (
-            mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss
-        )
+        total_loss = mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss
 
         return (
             total_loss,

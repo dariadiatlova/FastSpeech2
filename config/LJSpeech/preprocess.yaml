@@ -1,13 +1,15 @@
 dataset: "LJSpeech"
-
+device: "cuda"
 path:
   corpus_path: "/home/ming/Data/LJSpeech-1.1"
   lexicon_path: "lexicon/librispeech-lexicon.txt"
-  raw_path: "./raw_data/LJSpeech"
-  preprocessed_path: "./preprocessed_data/LJSpeech"
+  raw_path: "/root/dasha/mfa/aligned_corpus"
+  preprocessed_path: "/root/dasha/updated_preprocessed_data"
 
 preprocessing:
+  include_empty_intervals: true
   val_size: 512
+  device: "cuda"
   text:
     text_cleaners: ["english_cleaners"]
     language: "en"

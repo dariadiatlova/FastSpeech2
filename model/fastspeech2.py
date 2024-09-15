@@ -1,13 +1,11 @@
-import os
 import json
+import os
 
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from transformer import Encoder, Decoder, PostNet
-from .modules import VarianceAdaptor
 from utils.tools import get_mask_from_lengths
+from .modules import VarianceAdaptor
 
 
 class FastSpeech2(nn.Module):
@@ -16,29 +14,18 @@ class FastSpeech2(nn.Module):
     def __init__(self, preprocess_config, model_config):
         super(FastSpeech2, self).__init__()
         self.model_config = model_config
-
+        self.device = self.model_config["device"]
         self.encoder = Encoder(model_config)
         self.variance_adaptor = VarianceAdaptor(preprocess_config, model_config)
         self.decoder = Decoder(model_config)
-        self.mel_linear = nn.Linear(
-            model_config["transformer"]["decoder_hidden"],
-            preprocess_config["preprocessing"]["mel"]["n_mel_channels"],
-        )
+        self.mel_linear = nn.Linear(model_config["transformer"]["decoder_hidden"],
+                                    preprocess_config["preprocessing"]["mel"]["n_mel_channels"])
         self.postnet = PostNet()
-
         self.speaker_emb = None
         if model_config["multi_speaker"]:
-            with open(
-                os.path.join(
-                    preprocess_config["path"]["preprocessed_path"], "speakers.json"
-                ),
-                "r",
-            ) as f:
+            with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "speakers.json"), "r") as f:
                 n_speaker = len(json.load(f))
-            self.speaker_emb = nn.Embedding(
-                n_speaker,
-                model_config["transformer"]["encoder_hidden"],
-            )
+            self.speaker_emb = nn.Embedding(n_speaker, model_config["transformer"]["encoder_hidden"])
 
     def forward(
         self,
@@ -55,20 +42,14 @@ class FastSpeech2(nn.Module):
         p_control=1.0,
         e_control=1.0,
         d_control=1.0,
+        training: bool = True
     ):
-        src_masks = get_mask_from_lengths(src_lens, max_src_len)
-        mel_masks = (
-            get_mask_from_lengths(mel_lens, max_mel_len)
-            if mel_lens is not None
-            else None
-        )
-
+        src_masks = get_mask_from_lengths(src_lens, self.device, max_src_len)
+        mel_masks = get_mask_from_lengths(mel_lens, self.device, max_mel_len) if mel_lens is not None else None
         output = self.encoder(texts, src_masks)
 
         if self.speaker_emb is not None:
-            output = output + self.speaker_emb(speakers).unsqueeze(1).expand(
-                -1, max_src_len, -1
-            )
+            output = output + self.speaker_emb(speakers).unsqueeze(1).expand(-1, max_src_len, -1)
 
         (
             output,
@@ -91,11 +72,15 @@ class FastSpeech2(nn.Module):
             d_control,
         )
 
-        output, mel_masks = self.decoder(output, mel_masks)
+        output, mel_masks = self.decoder(output, mel_masks, training)
+        # print("before linear", output.shape)
         output = self.mel_linear(output)
-
+        # print("after linear", output.shape)
+        if mels is not None:
+            assert output.shape == mels.shape, f"Expected Variational Adapter Output to be equal to the target mel, " \
+                                               f"found target: {mels.shape}, output: {output.shape}."
         postnet_output = self.postnet(output) + output
-
+        # print("after post net", postnet_output.shape)
         return (
             output,
             postnet_output,
